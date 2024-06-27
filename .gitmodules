@@ -3,5 +3,5 @@
 	url = https://github.com/BuildIt-lang/buildit.git
 
 [submodule "deps/eigen"]
-    path = deps/eigen
-    url = https://gitlab.com/libeigen/eigen.git
+	path = deps/eigen
+	url = https://gitlab.com/libeigen/eigen.git

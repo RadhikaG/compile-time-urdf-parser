@@ -14,5 +14,5 @@ SAMPLES=$(subst $(SAMPLES_DIR),$(BUILD_DIR),$(SAMPLES_SRCS:.cpp=))
 LIBRARY_SRCS=$(wildcard $(SRC_DIR)/*.cpp)
 LIBRARY_OBJS=$(subst $(SRC_DIR),$(BUILD_DIR),$(LIBRARY_SRCS:.cpp=.o))
 
+EIGEN_DIR=$(PWD)/deps/eigen
 INCLUDES=$(wildcard $(INCLUDE_DIR)/*.h)
-

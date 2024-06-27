@@ -1,6 +1,6 @@
 -include Makefile.inc
 
-LIBRARY_NAME=foo
+LIBRARY_NAME=urdf-compiler
 
 include make/dirs.mk
 include make/setvars.mk
