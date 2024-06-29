@@ -2,6 +2,7 @@
 #define CSCALAR_H
 
 #include "cscalar_impl.h"
+#include "operators.h"
 #include "blocks/extract_cuda.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"

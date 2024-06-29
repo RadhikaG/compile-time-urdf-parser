@@ -10,13 +10,13 @@
 void blah() {
   Eigen::MatrixXcsd a(2,2);
   a << 
-      SpatialAlgebra::cscalard(1), SpatialAlgebra::cscalard(0),
-      SpatialAlgebra::cscalard(0), SpatialAlgebra::cscalard(1);
+      SpatialAlgebra::csed(1), SpatialAlgebra::csed(0),
+      SpatialAlgebra::csed(0), SpatialAlgebra::csed(1);
 
   Eigen::MatrixXcsd b(2,2);
   b << 
-      SpatialAlgebra::cscalard(), SpatialAlgebra::cscalard(6),
-      SpatialAlgebra::cscalard(7), SpatialAlgebra::cscalard(8);
+      SpatialAlgebra::csed(0), SpatialAlgebra::csed(6),
+      SpatialAlgebra::csed(7), SpatialAlgebra::csed(8);
 
   Eigen::MatrixXcsd c(2,2);
 
