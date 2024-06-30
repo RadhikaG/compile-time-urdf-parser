@@ -2,19 +2,18 @@
 #define CSCALAR_IMPL_H
 #include "builder/dyn_var.h"
 #include "builder/static_var.h"
+#include <memory>
 
 namespace SpatialAlgebra {
 
 // Base class for all expressions that can appear on the RHS of a =
 template <typename T>
 struct cscalar_expr {
-  virtual const builder::dyn_var<T> get_value_at() const {
-    return 0;
-  }
+  virtual const builder::dyn_var<T> get_value_at() const = 0; //{ return 0; }
 };
 
-template <typename T>
-struct cscalar_expr_const;
+//template <typename T>
+//struct cscalar_expr_const;
 // class for leaf cscalar exprs in AST consisting of one cscalar
 template <typename T>
 struct cscalar_expr_leaf;
@@ -22,7 +21,7 @@ struct cscalar_expr_leaf;
 // T is arith type: int, float, double
 template<typename T>
 struct cscalar {
-  builder::dyn_var<T*> m_value;
+  builder::dyn_var<T> m_value;
 
   // compile time optimization fields
   builder::static_var<int> is_constant = true;
@@ -33,13 +32,13 @@ struct cscalar {
   cscalar() {
   }
 
-  cscalar(builder::dyn_var<T*>& dyn_val) : is_constant(false), is_zero(false), m_value(dyn_val) {
+  cscalar(builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), m_value(dyn_val) {
   }
 
   cscalar(T value) : is_constant(true), constant_val(value) {
     if (value == 0)
       is_zero = true;
-    if (value == 1)
+    else if (value == 1)
       is_one = true;
   }
 
@@ -102,17 +101,16 @@ typedef cscalar<double> cscalard;
 template <typename T>
 struct cscalar_expr_leaf: public cscalar_expr<T> {
   const struct cscalar<T>& m_cscalar;
-  cscalar_expr_leaf (const T& value): m_cscalar(cscalar<T>(value)) {}
+  cscalar_expr_leaf (const T& value): m_cscalar(value) { std::cout << "leaf\n"; }
   cscalar_expr_leaf (const struct cscalar<T>& value): m_cscalar(value) {}
   
   const builder::dyn_var<T> get_value_at() const {
-    if (m_cscalar.is_constant)
+    if (m_cscalar.is_constant) {
       return m_cscalar.constant_val;        
-    return const_cast<builder::dyn_var<T*>&>(m_cscalar.m_value);
+    }
+    return const_cast<builder::dyn_var<T>&>(m_cscalar.m_value);
   }
 };
-
-typedef cscalar_expr_leaf<double> csed;
 
 // Non leaf RHS expr classes
 

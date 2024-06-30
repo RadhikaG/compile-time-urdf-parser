@@ -17,6 +17,7 @@ void generate_spatial_algebra_program(F func_input, std::string fname, std::ostr
 #endif
 	auto ast = ctx.extract_function_ast(func_input, fname, args...);
 	block::eliminate_redundant_vars(ast);
+    ast->dump(std::cout, 0);
 	auto new_decls = block::extract_cuda_from(block::to<block::func_decl>(ast)->body);
 	oss << "#include<stdlib.h>\n";
 #ifdef ENABLE_D2X
