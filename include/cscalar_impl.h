@@ -9,7 +9,7 @@ namespace SpatialAlgebra {
 // Base class for all expressions that can appear on the RHS of a =
 template <typename T>
 struct cscalar_expr {
-  virtual const builder::dyn_var<T> get_value_at() const = 0; //{ return 0; }
+  virtual const builder::dyn_var<T> get_value_at() const { return 0; }
 };
 
 //template <typename T>
@@ -44,7 +44,7 @@ struct cscalar {
 
   // Delete the default implementations of the operators
   // and copy constructors
-  cscalar(const cscalar& other) = delete;
+  //cscalar(const cscalar& other) = delete;
 
   // Assignment operator overloads
 
@@ -64,6 +64,7 @@ struct cscalar {
   }
 
   void operator=(const cscalar& other) {
+    // this actually calls operator = for cscalar_expr<T> rhs
     *this = cscalar_expr_leaf<T>(other);
   }
 
@@ -101,7 +102,7 @@ typedef cscalar<double> cscalard;
 template <typename T>
 struct cscalar_expr_leaf: public cscalar_expr<T> {
   const struct cscalar<T>& m_cscalar;
-  cscalar_expr_leaf (const T& value): m_cscalar(value) { std::cout << "leaf\n"; }
+  cscalar_expr_leaf (const T& value): m_cscalar(value) {}
   cscalar_expr_leaf (const struct cscalar<T>& value): m_cscalar(value) {}
   
   const builder::dyn_var<T> get_value_at() const {
