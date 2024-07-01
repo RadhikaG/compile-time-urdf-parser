@@ -32,10 +32,12 @@ struct cscalar {
   cscalar() {
   }
 
-  cscalar(builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), m_value(dyn_val) {
-  }
+  cscalar(builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), m_value(dyn_val) {}
+
+  cscalar(const builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), m_value(dyn_val) {}
 
   cscalar(T value) : is_constant(true), constant_val(value) {
+    m_value = constant_val;
     if (value == 0)
       is_zero = true;
     else if (value == 1)
@@ -48,13 +50,14 @@ struct cscalar {
 
   // Assignment operator overloads
 
-  void operator=(const cscalar_expr<T> & rhs) {
-    // need to trigger get_value_at calls for each sub-expr inside expr tree
-    // to materialize AST into code
-    m_value = rhs.get_value_at();
-  }
+  //void operator=(const cscalar_expr<T> & rhs) {
+  //  // need to trigger get_value_at calls for each sub-expr inside expr tree
+  //  // to materialize AST into code
+  //  m_value = rhs.get_value_at();
+  //}
 
   void operator=(const T& value) {
+    m_value = value;
     is_constant = true;
     constant_val = value;
     if (value == 0)
@@ -63,9 +66,78 @@ struct cscalar {
       is_one = true;
   }
 
+  //void operator=(const cscalar& other) {
+  //  // this actually calls operator = for cscalar_expr<T> rhs
+  //  *this = cscalar_expr_leaf<T>(other);
+  //}
   void operator=(const cscalar& other) {
     // this actually calls operator = for cscalar_expr<T> rhs
-    *this = cscalar_expr_leaf<T>(other);
+    if (other.is_constant)
+      this->m_value = other.constant_val;
+    else
+      this->m_value = other.m_value;
+  }
+
+  const cscalar& operator+(const cscalar& other) const {
+    if (is_constant && other.is_constant)
+      return *new cscalar(constant_val + other.constant_val);
+    if (is_zero)
+      return *new cscalar(other);
+    if (other.is_zero)
+      return *this;
+
+    return *new cscalar(m_value + other.m_value);
+  }
+
+  const cscalar& operator-(const cscalar& other) const {
+    if (is_constant && other.is_constant)
+      return *new cscalar(constant_val - other.constant_val);
+    if (is_zero)
+      return *new cscalar(-other.m_value);
+    if (other.is_zero)
+      return *this;
+
+    return *new cscalar(m_value - other.m_value);
+  }
+
+  const cscalar& operator*(const cscalar& other) const {
+    if (is_constant && other.is_constant)
+      return *new cscalar(constant_val * other.constant_val);
+    if (is_one)
+      return other;
+    if (other.is_one)
+      return *this;
+
+    return *new cscalar(m_value * other.m_value);
+  }
+
+  const cscalar& operator/(const cscalar& other) const {
+    if (is_constant && other.is_constant)
+      return *new cscalar(constant_val / other.constant_val);
+    if (is_zero)
+      return *new cscalar(0);
+    //if (other.is_zero)
+    //  assert
+    if (other.is_one)
+      return *this;
+
+    return *new cscalar(m_value / other.m_value);
+  }
+
+  void operator+=(const cscalar& other) {
+    *this = *this + other;
+  }
+
+  void operator-=(const cscalar& other) {
+    *this = *this - other;
+  }
+
+  void operator*=(const cscalar& other) {
+    *this = *this * other;
+  }
+
+  void operator/=(const cscalar& other) {
+    *this = *this / other;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const cscalar& obj) {
@@ -188,62 +260,6 @@ struct cscalar_expr_div: public cscalar_expr<T> {
     return expr1.get_value_at() / expr2.get_value_at();
   }
 };
-
-
-//  cscalar operator+(const cscalar& other) const {
-//    if (is_constant && other.is_constant)
-//      return cscalar(constant_val + other.constant_val);
-//    if (is_zero)
-//      return other;
-//    if (other.is_zero)
-//      return *this;
-//
-//    return cscalar(m_value + other.m_value);
-//  }
-//
-//  cscalar operator-(const cscalar& other) const {
-//    if (is_constant && other.is_constant)
-//      return cscalar(constant_val - other.constant_val);
-//    if (is_zero)
-//      return cscalar(-other.m_value);
-//    if (other.is_zero)
-//      return *this;
-//
-//    return cscalar(m_value - other.m_value);
-//  }
-//
-//  cscalar operator*(const cscalar& other) const {
-//    if (is_constant && other.is_constant)
-//      return cscalar(constant_val * other.constant_val);
-//    if (is_one)
-//      return other;
-//    if (other.is_one)
-//      return *this;
-//
-//    return cscalar(m_value * other.m_value);
-//  }
-//
-//  cscalar operator/(const cscalar& other) const {
-//    if (is_constant && other.is_constant)
-//      return cscalar(constant_val / other.constant_val);
-//    if (is_zero)
-//      return cscalar(0);
-//    //if (other.is_zero)
-//    //  assert
-//    if (other.is_one)
-//      return *this;
-//
-//    return cscalar(m_value / other.m_value);
-//  }
-//
-//  cscalar operator*=(const cscalar& other) {
-//    if (is_constant && other.is_constant)
-//      this->constant_val *= other.constant_val;
-//    else
-//      
-//    
-//    return *this;
-//  }
 
 }
 

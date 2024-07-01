@@ -26,39 +26,28 @@
 
 void blah() {
   //Eigen::MatrixXcsd a(2,2);
-  typedef SpatialAlgebra::cscalar_expr_leaf<double> csec;
   //a <<
-  //    csec(1), csec(2),
-  //    csec(3), csec(4);
-
-  ////a << 
-  ////    SpatialAlgebra::csed(1), SpatialAlgebra::csed(0),
-  ////    SpatialAlgebra::csed(0), SpatialAlgebra::csed(1);
+  //    SpatialAlgebra::cscalard(1), SpatialAlgebra::cscalard(2),
+  //    SpatialAlgebra::cscalard(3), SpatialAlgebra::cscalard(4);
 
   //Eigen::MatrixXcsd b(2,2);
   //b <<
-  //    csec(5), csec(6),
-  //    csec(7), csec(8);
-  ////b << 
-  ////    SpatialAlgebra::csed(0), SpatialAlgebra::csed(6),
-  ////    SpatialAlgebra::csed(7), SpatialAlgebra::csed(8);
+  //    SpatialAlgebra::cscalard(5), SpatialAlgebra::cscalard(6),
+  //    SpatialAlgebra::cscalard(7), SpatialAlgebra::cscalard(8);
 
   //Eigen::MatrixXcsd c(2,2);
-  //c <<
-  //    csec(0), csec(0),
-  //    csec(0), csec(0);
+
+  //c = a + b;
 
   SpatialAlgebra::cscalard a(1);
   SpatialAlgebra::cscalard b(3);
 
   SpatialAlgebra::cscalard x,y,z;
 
-  x = (a + b) * b;
-  x *= b;
- 
-  //x = c(0,0);
-  //y = c(0,1);
-  //z = c(1,0);
+  x = a + b;
+  //x = (a + b);// * b;
+  //x = (a + b) * b;
+  //x *= b;
 }
 
 int main(int argc, char* argv[]) {
