@@ -92,8 +92,8 @@ int main(int argc, char* argv[]) {
     // do this at runtime because compile-time XML parsing
     // not required.
     
-	//SpatialAlgebra::generate_spatial_algebra_program(eep, "eep", std::cout);
-	SpatialAlgebra::generate_spatial_algebra_program(meh, "meh", std::cout);
+	SpatialAlgebra::generate_spatial_algebra_program(eep, "eep", std::cout);
+	//SpatialAlgebra::generate_spatial_algebra_program(meh, "meh", std::cout);
 	//SpatialAlgebra::generate_spatial_algebra_program(ree, "ree", std::cout);
 	//SpatialAlgebra::generate_spatial_algebra_program(blah, "blah", std::cout);
 	//SpatialAlgebra::generate_spatial_algebra_program(oof, "oof", std::cout);

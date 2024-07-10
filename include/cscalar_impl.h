@@ -38,18 +38,24 @@ struct cscalar {
   // and copy constructors
   //cscalar(const cscalar& other) = delete;
 
-  cscalar() {
+  cscalar() : m_value(*new builder::dyn_var<T>) {
+    m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
-  cscalar(builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), is_one(false), m_value(dyn_val) {}
+  cscalar(builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), is_one(false), m_value(dyn_val) {
+    m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
+  }
 
-  cscalar(const builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), is_one(false), m_value(dyn_val) {}
+  //cscalar(const builder::dyn_var<T>& dyn_val) : is_constant(false), is_zero(false), is_one(false), m_value(dyn_val) {
+  //  m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
+  //}
 
-  cscalar(T value) : is_constant(true), constant_val(value) {
+  cscalar(T value) : is_constant(true), constant_val(value), m_value(*new builder::dyn_var<T>) {
     if (value == 0)
       is_zero = true;
     else if (value == 1)
       is_one = true;
+    m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
   // Assignment operator overloads
@@ -61,13 +67,14 @@ struct cscalar {
   }
 
   void operator=(const T& value) {
-    m_value = value;
-    is_constant = true;
-    constant_val = value;
-    if (value == 0)
-      is_zero = true;
-    else if (value == 1)
-      is_one = true;
+    //m_value = value;
+    //is_constant = true;
+    //constant_val = value;
+    //if (value == 0)
+    //  is_zero = true;
+    //else if (value == 1)
+    //  is_one = true;
+    *this = cscalar_expr_leaf<T>(value);
   }
 
   void operator=(const cscalar& other) {
