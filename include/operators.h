@@ -6,136 +6,136 @@
 #include "Eigen/Dense"
 #include <type_traits>
 
-namespace SpatialAlgebra {
-
-
-// A simple type trait to identify if 
-// operators should be overloaded
-template <typename T>
-struct is_acceptable_rhs {
-  static const bool value = false;
-};
-
-template <typename T>
-struct is_acceptable_rhs<cscalar<T>> {
-  static const bool value = true;
-  using output_type = T;
-  static const cscalar_expr<T>& cast(const cscalar<T>& v) {
-    return *new cscalar_expr_leaf<T>(v);
-  }
-};
-
-template <typename T>
-struct is_acceptable_rhs<cscalar_expr<T>> {
-  static const bool value = true;
-  using output_type = T;
-  static const cscalar_expr<T>& cast(const cscalar_expr<T>& v) {
-    return v;
-  }
-};
-
-template <>
-struct is_acceptable_rhs<int> {
-  static const bool value = true;
-  using output_type = int;
-  static const cscalar_expr<int>& cast(const int& v) {
-    return * new cscalar_expr_leaf<int>(v);
-  }
-};
-
-template <>
-struct is_acceptable_rhs<float> {
-  static const bool value = true;
-  using output_type = float;
-  static const cscalar_expr<float>& cast(const float& v) {
-    return * new cscalar_expr_leaf<float>(v);
-  }
-};
-
-template <>
-struct is_acceptable_rhs<double> {
-  static const bool value = true;
-  using output_type = double;
-  static const cscalar_expr<double>& cast(const double& v) {
-    return * new cscalar_expr_leaf<double>(v);
-  }
-};
-
-// Bin op overloads: 
-// Return type: cscalar_expr
-// T1: [cscalar, cscalar_expr, int|float|double]
-// T2: [cscalar, cscalar_expr, int|float|double]
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
-operator + (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_add<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
-operator - (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_sub<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
-operator * (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_mul<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
-operator / (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_div<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
-}
-
+//namespace SpatialAlgebra {
+//
+//
+//// A simple type trait to identify if 
+//// operators should be overloaded
+//template <typename T>
+//struct is_acceptable_rhs {
+//  static const bool value = false;
+//};
+//
+//template <typename T>
+//struct is_acceptable_rhs<cscalar<T>> {
+//  static const bool value = true;
+//  using output_type = T;
+//  static const cscalar_expr<T>& cast(const cscalar<T>& v) {
+//    return *new cscalar_expr_leaf<T>(v);
+//  }
+//};
+//
+//template <typename T>
+//struct is_acceptable_rhs<cscalar_expr<T>> {
+//  static const bool value = true;
+//  using output_type = T;
+//  static const cscalar_expr<T>& cast(const cscalar_expr<T>& v) {
+//    return v;
+//  }
+//};
+//
+//template <>
+//struct is_acceptable_rhs<int> {
+//  static const bool value = true;
+//  using output_type = int;
+//  static const cscalar_expr<int>& cast(const int& v) {
+//    return * new cscalar_expr_leaf<int>(v);
+//  }
+//};
+//
+//template <>
+//struct is_acceptable_rhs<float> {
+//  static const bool value = true;
+//  using output_type = float;
+//  static const cscalar_expr<float>& cast(const float& v) {
+//    return * new cscalar_expr_leaf<float>(v);
+//  }
+//};
+//
+//template <>
+//struct is_acceptable_rhs<double> {
+//  static const bool value = true;
+//  using output_type = double;
+//  static const cscalar_expr<double>& cast(const double& v) {
+//    return * new cscalar_expr_leaf<double>(v);
+//  }
+//};
+//
+//// Bin op overloads: 
+//// Return type: cscalar_expr
+//// T1: [cscalar, cscalar_expr, int|float|double]
+//// T2: [cscalar, cscalar_expr, int|float|double]
+//
 //template <typename T1, typename T2>
-//typename std::enable_if<is_acceptable_rhs<T2>::value, bool>::type
-//operator == (const T1& v1, const T2& v2) {
-//  return false;
+//typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+//operator + (const T1& v1, const T2& v2) {
+//  return *new cscalar_expr_add<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
 //}
-
-// Arith-with-assignment op overloads: 
-// Return type: none
-// T1: [cscalar]
-// T2: [cscalar, cscalar_expr, int|float|double]
-
-template <typename T>
-struct is_acceptable_lhs_assign {
-  static const bool value = false;
-};
-
-template <typename T>
-struct is_acceptable_lhs_assign<cscalar<T>> {
-  static const bool value = true;
-  using output_type = T;
-};
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
-operator += (T1& v1, const T2& v2) {
-  v1 = v1 + v2;
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
-operator -= (T1& v1, const T2& v2) {
-  v1 = v1 - v2;
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
-operator *= (T1& v1, const T2& v2) {
-  v1 = v1 * v2;
-}
-
-template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
-operator /= (T1& v1, const T2& v2) {
-  v1 = v1 / v2;
-}
-}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+//operator - (const T1& v1, const T2& v2) {
+//  return *new cscalar_expr_sub<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+//}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+//operator * (const T1& v1, const T2& v2) {
+//  return *new cscalar_expr_mul<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+//}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+//operator / (const T1& v1, const T2& v2) {
+//  return *new cscalar_expr_div<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+//}
+//
+////template <typename T1, typename T2>
+////typename std::enable_if<is_acceptable_rhs<T2>::value, bool>::type
+////operator == (const T1& v1, const T2& v2) {
+////  return false;
+////}
+//
+//// Arith-with-assignment op overloads: 
+//// Return type: none
+//// T1: [cscalar]
+//// T2: [cscalar, cscalar_expr, int|float|double]
+//
+//template <typename T>
+//struct is_acceptable_lhs_assign {
+//  static const bool value = false;
+//};
+//
+//template <typename T>
+//struct is_acceptable_lhs_assign<cscalar<T>> {
+//  static const bool value = true;
+//  using output_type = T;
+//};
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+//operator += (T1& v1, const T2& v2) {
+//  v1 = v1 + v2;
+//}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+//operator -= (T1& v1, const T2& v2) {
+//  v1 = v1 - v2;
+//}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+//operator *= (T1& v1, const T2& v2) {
+//  v1 = v1 * v2;
+//}
+//
+//template <typename T1, typename T2>
+//typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+//operator /= (T1& v1, const T2& v2) {
+//  v1 = v1 / v2;
+//}
+//}
 
 namespace Eigen {
 template<typename T>
@@ -143,7 +143,7 @@ template<typename T>
 struct NumTraits<SpatialAlgebra::cscalar<T>> {
   typedef SpatialAlgebra::cscalar<T> Real;
   typedef SpatialAlgebra::cscalar<T> NonInteger;
-  //typedef SpatialAlgebra::cscalar<T> Literal;
+  typedef SpatialAlgebra::cscalar<T> Literal;
   typedef SpatialAlgebra::cscalar<T> Nested;
 
   // modified from CppAD eigen overloads
@@ -192,68 +192,6 @@ struct NumTraits<SpatialAlgebra::cscalar<T>> {
   };
 };
 
-//template<typename T>
-//// inherit traits from arith type T
-//struct NumTraits<builder::dyn_var<T>> : NumTraits<T> {
-//  typedef builder::dyn_var<T> Real;
-//  typedef builder::dyn_var<T> NonInteger;
-//  typedef builder::dyn_var<T> Literal;
-//  typedef builder::dyn_var<T> Nested;
-//
-//  // modified from CppAD eigen overloads
-//  // https://github.com/coin-or/CppAD/blob/master/include/cppad/example/cppad_eigen.hpp
-//
-//  // machine epsilon with type of real part of x
-//  // (use assumption that T is not complex)
-//  static builder::dyn_var<T> epsilon(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::epsilon(); }
-//
-//  // relaxed version of machine epsilon for comparison of different
-//  // operations that should result in the same value
-//  static builder::dyn_var<T> dummy_precision(void)
-//  {   return 100. *
-//          std::numeric_limits< builder::dyn_var<T> >::epsilon();
-//  }
-//
-//  // minimum normalized positive value
-//  static builder::dyn_var<T> lowest(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::min(); }
-//
-//  // maximum finite value
-//  static builder::dyn_var<T> highest(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::max(); }
-//
-//  // number of decimal digits that can be represented without change.
-//  static int digits10(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::digits10; }
-//
-//  // not a number
-//  static builder::dyn_var<T> quiet_NaN(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::quiet_NaN(); }
-//
-//  // positive infinite value
-//  static builder::dyn_var<T> infinity(void)
-//  {   return std::numeric_limits< builder::dyn_var<T> >::infinity(); }
-//
-//  enum {
-//    IsComplex = 0,
-//    IsInteger = 0,
-//    IsSigned = 1,
-//    RequireInitialization = 1,
-//    ReadCost = 1,
-//    AddCost = 3,
-//    MulCost = 3
-//  };
-//};
-
-//template<typename T1, typename T2, typename BinOp>
-//struct ScalarBinaryOpTraits<T1, T2, std::enable_if<
-//    SpatialAlgebra::is_acceptable_rhs<T1>::value && SpatialAlgebra::is_acceptable_rhs<T2>::value, 
-//    BinOp>
-//>
-//{
-//  typedef SpatialAlgebra::cscalar_expr<typename SpatialAlgebra::is_acceptable_rhs<T1>::output_type> ReturnType;
-//};
 template<typename T, typename BinOp>
 struct ScalarBinaryOpTraits<SpatialAlgebra::cscalar<T>, SpatialAlgebra::cscalar<T>, BinOp>
 {
