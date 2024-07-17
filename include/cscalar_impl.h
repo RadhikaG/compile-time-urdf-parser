@@ -33,6 +33,10 @@ struct cscalar {
   builder::static_var<int> is_zero = false;
   builder::static_var<int> is_one = false;
   builder::static_var<T> constant_val = 0;
+  //int is_constant = false;
+  //int is_zero = false;
+  //int is_one = false;
+  //T constant_val = 0;
 
   // Delete the default implementations of the operators
   // and copy constructors
@@ -45,18 +49,22 @@ struct cscalar {
     constant_val = other.constant_val;
   }
 
-  cscalar() {}
+  cscalar() {
+    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
+  }
 
   cscalar(builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
     is_constant = false;
     is_zero = false;
     is_one = false;
+    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
   cscalar(const builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
     is_constant = false;
     is_zero = false;
     is_one = false;
+    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
   cscalar(T value) : constant_val(value) {
@@ -67,6 +75,7 @@ struct cscalar {
       is_zero = true;
     else if (value == 1)
       is_one = true;
+    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
   ~cscalar() = default;
@@ -109,6 +118,7 @@ struct cscalar {
       m_value = other.m_value;
   }
 
+#ifndef EXPR_RETURN
   const cscalar& operator+(const cscalar& other) const {
     std::cout << "cscalar + cscalar\n";
     if (is_constant && other.is_constant) {
@@ -172,6 +182,7 @@ struct cscalar {
   void operator/=(const cscalar& other) {
     *this = *this / other;
   }
+#endif
 
   friend std::ostream& operator<<(std::ostream& os, const cscalar& obj) {
     if (obj.is_constant)
@@ -272,21 +283,6 @@ struct cscalar_expr_mul: public cscalar_expr<T> {
   const struct cscalar_expr<T>& expr2;
 
   cscalar_expr_mul(const struct cscalar_expr<T>& expr1, const struct cscalar_expr<T>& expr2):
-    expr1(expr1), expr2(expr2) {
-  }
-
-  const builder::dyn_var<T> get_value_at() const {
-    return expr1.get_value_at() * expr2.get_value_at();
-  }
-};
-
-// Multiplication Assignment
-template <typename T>
-struct cscalar_expr_mul_ass: public cscalar_expr<T> {
-  const struct cscalar_expr<T>& expr1;
-  const struct cscalar_expr<T>& expr2;
-
-  cscalar_expr_mul_ass(const struct cscalar_expr<T>& expr1, const struct cscalar_expr<T>& expr2):
     expr1(expr1), expr2(expr2) {
   }
 
