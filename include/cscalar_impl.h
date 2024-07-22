@@ -37,6 +37,11 @@ struct cscalar {
   //int is_zero = false;
   //int is_one = false;
   //T constant_val = 0;
+  // default constructor
+
+  cscalar() {}
+
+  ~cscalar() {}
 
   // Delete the default implementations of the operators
   // and copy constructors
@@ -49,24 +54,6 @@ struct cscalar {
     constant_val = other.constant_val;
   }
 
-  cscalar() {
-    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
-  }
-
-  cscalar(builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
-    is_constant = false;
-    is_zero = false;
-    is_one = false;
-    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
-  }
-
-  cscalar(const builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
-    is_constant = false;
-    is_zero = false;
-    is_one = false;
-    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
-  }
-
   cscalar(T value) : constant_val(value) {
     std::cout << "value ctor\n";
     is_constant = true;
@@ -75,16 +62,18 @@ struct cscalar {
       is_zero = true;
     else if (value == 1)
       is_one = true;
-    //m_value.block_var->template setMetadata<int>("allow_escape_scope", 1);
   }
 
-  ~cscalar() = default;
+  cscalar(builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
+    is_constant = false;
+    is_zero = false;
+    is_one = false;
+  }
 
-  // for implicit cast to dyn_var
-  operator builder::dyn_var<T>() const {
-    if (is_constant)
-      return constant_val;
-    return m_value;
+  cscalar(const builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
+    is_constant = false;
+    is_zero = false;
+    is_one = false;
   }
 
   // Assignment operator overloads
@@ -105,84 +94,10 @@ struct cscalar {
       is_one = true;
   }
 
-  //void operator=(const cscalar& other) {
-  //  // this actually calls operator = for cscalar_expr<T> rhs
-  //  *this = cscalar_expr_leaf<T>(other);
-  //}
   void operator=(const cscalar& other) {
-    std::cout << "= cscalar\n";
-    if (other.is_constant) {
-      *this = other.constant_val;
-    }
-    else
-      m_value = other.m_value;
+    // this actually calls operator = for cscalar_expr<T> rhs
+    *this = cscalar_expr_leaf<T>(other);
   }
-
-#ifndef EXPR_RETURN
-  const cscalar& operator+(const cscalar& other) const {
-    std::cout << "cscalar + cscalar\n";
-    if (is_constant && other.is_constant) {
-      return *new cscalar(constant_val + other.constant_val);
-    }
-    if (is_zero)
-      return *new cscalar(other.m_value);
-    if (other.is_zero)
-      return *new cscalar(m_value);
-
-    return *new cscalar(m_value + other.m_value);
-  }
-
-  const cscalar& operator-(const cscalar& other) const {
-    if (is_constant && other.is_constant)
-      return *new cscalar(constant_val - other.constant_val);
-    if (is_zero)
-      return *new cscalar(-other.m_value);
-    if (other.is_zero)
-      return *this;
-
-    return *new cscalar(m_value - other.m_value);
-  }
-
-  const cscalar& operator*(const cscalar& other) const {
-    if (is_constant && other.is_constant)
-      return *new cscalar(constant_val * other.constant_val);
-    if (is_one)
-      return other;
-    if (other.is_one)
-      return *this;
-
-    return *new cscalar(m_value * other.m_value);
-  }
-
-  const cscalar& operator/(const cscalar& other) const {
-    if (is_constant && other.is_constant)
-      return *new cscalar(constant_val / other.constant_val);
-    if (is_zero)
-      return *new cscalar(0);
-    //if (other.is_zero)
-    //  assert
-    if (other.is_one)
-      return *this;
-
-    return *new cscalar(m_value / other.m_value);
-  }
-
-  void operator+=(const cscalar& other) {
-    *this = *this + other;
-  }
-
-  void operator-=(const cscalar& other) {
-    *this = *this - other;
-  }
-
-  void operator*=(const cscalar& other) {
-    *this = *this * other;
-  }
-
-  void operator/=(const cscalar& other) {
-    *this = *this / other;
-  }
-#endif
 
   friend std::ostream& operator<<(std::ostream& os, const cscalar& obj) {
     if (obj.is_constant)

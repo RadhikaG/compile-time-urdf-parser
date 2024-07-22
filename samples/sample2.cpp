@@ -2,8 +2,7 @@
 #include "builder/forward_declarations.h"
 #include "Eigen/Dense"
 #include "builder/static_var.h"
-#include "cscalar.h"
-#include "cscalar_impl.h"
+#include "spatial_algebra.h"
 
 using builder::dyn_var;
 using builder::static_var;

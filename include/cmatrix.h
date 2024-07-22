@@ -1,8 +1,8 @@
-#ifndef CSCALAR_H
-#define CSCALAR_H
+#ifndef CMATRIX_H
+#define CMATRIX_H
 
-#include "cscalar_impl.h"
-#include "operators.h"
+#include "cmatrix_impl.h"
+#include "cmatrix_operators.h"
 #include "blocks/extract_cuda.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
@@ -35,3 +35,4 @@ void generate_spatial_algebra_program(F func_input, std::string fname, std::ostr
 }
 
 #endif
+

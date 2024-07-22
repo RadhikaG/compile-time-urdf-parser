@@ -1,24 +1,23 @@
-#ifndef BARRAY_OPERATOR_H
-#define BARRAY_OPERATOR_H
+#ifndef CSCALAR_OPERATOR_H
+#define CSCALAR_OPERATOR_H
 
 #include "builder/dyn_var.h"
-#include "cscalar.h"
+#include "cscalar_impl.h"
 #include "Eigen/Dense"
 #include <type_traits>
 
-#ifdef EXPR_RETURN
 namespace SpatialAlgebra {
 
 
 // A simple type trait to identify if 
 // operators should be overloaded
 template <typename T>
-struct is_acceptable_rhs {
+struct is_acceptable_rhs_scalar {
   static const bool value = false;
 };
 
 template <typename T>
-struct is_acceptable_rhs<cscalar<T>> {
+struct is_acceptable_rhs_scalar<cscalar<T>> {
   static const bool value = true;
   using output_type = T;
   static const cscalar_expr<T>& cast(const cscalar<T>& v) {
@@ -27,7 +26,7 @@ struct is_acceptable_rhs<cscalar<T>> {
 };
 
 template <typename T>
-struct is_acceptable_rhs<cscalar_expr<T>> {
+struct is_acceptable_rhs_scalar<cscalar_expr<T>> {
   static const bool value = true;
   using output_type = T;
   static const cscalar_expr<T>& cast(const cscalar_expr<T>& v) {
@@ -36,7 +35,7 @@ struct is_acceptable_rhs<cscalar_expr<T>> {
 };
 
 template <>
-struct is_acceptable_rhs<int> {
+struct is_acceptable_rhs_scalar<int> {
   static const bool value = true;
   using output_type = int;
   static const cscalar_expr<int>& cast(const int& v) {
@@ -45,7 +44,7 @@ struct is_acceptable_rhs<int> {
 };
 
 template <>
-struct is_acceptable_rhs<float> {
+struct is_acceptable_rhs_scalar<float> {
   static const bool value = true;
   using output_type = float;
   static const cscalar_expr<float>& cast(const float& v) {
@@ -54,7 +53,7 @@ struct is_acceptable_rhs<float> {
 };
 
 template <>
-struct is_acceptable_rhs<double> {
+struct is_acceptable_rhs_scalar<double> {
   static const bool value = true;
   using output_type = double;
   static const cscalar_expr<double>& cast(const double& v) {
@@ -68,31 +67,31 @@ struct is_acceptable_rhs<double> {
 // T2: [cscalar, cscalar_expr, int|float|double]
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+typename std::enable_if<is_acceptable_rhs_scalar<T2>::value, const cscalar_expr<typename is_acceptable_rhs_scalar<T1>::output_type>&>::type
 operator + (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_add<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+  return *new cscalar_expr_add<typename is_acceptable_rhs_scalar<T1>::output_type>(is_acceptable_rhs_scalar<T1>::cast(v1), is_acceptable_rhs_scalar<T2>::cast(v2));
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+typename std::enable_if<is_acceptable_rhs_scalar<T2>::value, const cscalar_expr<typename is_acceptable_rhs_scalar<T1>::output_type>&>::type
 operator - (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_sub<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+  return *new cscalar_expr_sub<typename is_acceptable_rhs_scalar<T1>::output_type>(is_acceptable_rhs_scalar<T1>::cast(v1), is_acceptable_rhs_scalar<T2>::cast(v2));
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+typename std::enable_if<is_acceptable_rhs_scalar<T2>::value, const cscalar_expr<typename is_acceptable_rhs_scalar<T1>::output_type>&>::type
 operator * (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_mul<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+  return *new cscalar_expr_mul<typename is_acceptable_rhs_scalar<T1>::output_type>(is_acceptable_rhs_scalar<T1>::cast(v1), is_acceptable_rhs_scalar<T2>::cast(v2));
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_rhs<T2>::value, const cscalar_expr<typename is_acceptable_rhs<T1>::output_type>&>::type
+typename std::enable_if<is_acceptable_rhs_scalar<T2>::value, const cscalar_expr<typename is_acceptable_rhs_scalar<T1>::output_type>&>::type
 operator / (const T1& v1, const T2& v2) {
-  return *new cscalar_expr_div<typename is_acceptable_rhs<T1>::output_type>(is_acceptable_rhs<T1>::cast(v1), is_acceptable_rhs<T2>::cast(v2));
+  return *new cscalar_expr_div<typename is_acceptable_rhs_scalar<T1>::output_type>(is_acceptable_rhs_scalar<T1>::cast(v1), is_acceptable_rhs_scalar<T2>::cast(v2));
 }
 
 //template <typename T1, typename T2>
-//typename std::enable_if<is_acceptable_rhs<T2>::value, bool>::type
+//typename std::enable_if<is_acceptable_rhs_scalar<T2>::value, bool>::type
 //operator == (const T1& v1, const T2& v2) {
 //  return false;
 //}
@@ -103,41 +102,40 @@ operator / (const T1& v1, const T2& v2) {
 // T2: [cscalar, cscalar_expr, int|float|double]
 
 template <typename T>
-struct is_acceptable_lhs_assign {
+struct is_acceptable_lhs_scalar_assign {
   static const bool value = false;
 };
 
 template <typename T>
-struct is_acceptable_lhs_assign<cscalar<T>> {
+struct is_acceptable_lhs_scalar_assign<cscalar<T>> {
   static const bool value = true;
   using output_type = T;
 };
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+typename std::enable_if<is_acceptable_lhs_scalar_assign<T1>::value, void>::type
 operator += (T1& v1, const T2& v2) {
   v1 = v1 + v2;
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+typename std::enable_if<is_acceptable_lhs_scalar_assign<T1>::value, void>::type
 operator -= (T1& v1, const T2& v2) {
   v1 = v1 - v2;
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+typename std::enable_if<is_acceptable_lhs_scalar_assign<T1>::value, void>::type
 operator *= (T1& v1, const T2& v2) {
   v1 = v1 * v2;
 }
 
 template <typename T1, typename T2>
-typename std::enable_if<is_acceptable_lhs_assign<T1>::value, void>::type
+typename std::enable_if<is_acceptable_lhs_scalar_assign<T1>::value, void>::type
 operator /= (T1& v1, const T2& v2) {
   v1 = v1 / v2;
 }
 }
-#endif
 
 namespace Eigen {
 template<typename T>
