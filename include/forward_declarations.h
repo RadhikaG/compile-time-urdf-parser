@@ -13,6 +13,9 @@ namespace SpatialAlgebra {
 
   template <typename T>
   struct cmatrix_expr;
+
+  template <typename T>
+  struct cscalar_expr_leaf;
 }
 
 #endif

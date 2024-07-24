@@ -6,7 +6,9 @@ using builder::dyn_var;
 using builder::static_var;
 
 void eep() {
-  SpatialAlgebra::cmatrix<double> a({2,2}), b({2,2}), c({2,2});
+  SpatialAlgebra::cmatrix<double> a({1,2}), b({1,2}), c({1,2});
+
+  std::cout << "all\n";
 
   c = a + b;
 }
