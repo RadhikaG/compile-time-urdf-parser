@@ -12,7 +12,7 @@ std::vector<int> match_expr_sizes(std::vector<int>, std::vector<int>);
 // Base class for all expressions that can appear on the RHS of a =
 template<typename T>
 struct cmatrix_expr {
-  virtual const cscalar_expr<T> get_value_at(std::vector<builder::static_var<int>*> indices) const { return cscalar_expr_leaf<T>(0); }
+  virtual const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const { return *new cscalar_expr_leaf<T>(0); }
   virtual const std::vector<int> get_expr_size(void) const {
     return {};
   }
@@ -118,8 +118,8 @@ struct cmatrix_expr_leaf: public cmatrix_expr<T> {
   const struct cmatrix<T>& m_matrix;
   cmatrix_expr_leaf(const struct cmatrix<T>& matrix): m_matrix(matrix) {}
 
-  const cscalar_expr<T> get_value_at(std::vector<builder::static_var<int>*> indices) const {
-    return cscalar_expr_leaf<T>(*(m_matrix.m_buffer[m_matrix.compute_flat_index(indices)]));
+  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+    return *new cscalar_expr_leaf<T>(*(m_matrix.m_buffer[m_matrix.compute_flat_index(indices)]));
   }
 
   const std::vector<int> get_expr_size(void) const {
@@ -145,7 +145,7 @@ struct cmatrix_expr_add: public cmatrix_expr<T> {
     return computed_sizes;
   }
 
-  const cscalar_expr<T> get_value_at(std::vector<builder::static_var<int>*> indices) const {
+  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
     return expr1.get_value_at(indices) + expr2.get_value_at(indices);
   }
 };
