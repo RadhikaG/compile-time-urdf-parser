@@ -151,68 +151,66 @@ struct cmatrix_expr_add: public cmatrix_expr<T> {
 };
 
 template<typename T>
-struct cmatrix_expr_vstack: public cmatrix_expr<T> {
+struct cmatrix_expr_sub: public cmatrix_expr<T> {
   const struct cmatrix_expr<T>& expr1;
   const struct cmatrix_expr<T>& expr2;
 
   std::vector<int> computed_sizes;
 
-  cmatrix_expr_vstack(const struct cmatrix_expr<T>& expr1, const struct cmatrix_expr<T>& expr2): 
+  cmatrix_expr_sub(const struct cmatrix_expr<T>& expr1, const struct cmatrix_expr<T>& expr2): 
       expr1(expr1), expr2(expr2) {
-    //computed_sizes = match_expr_sizes(expr1.get_expr_size(), expr2.get_expr_size());
+    computed_sizes = match_expr_sizes(expr1.get_expr_size(), expr2.get_expr_size());
   }
 
   const std::vector<int> get_expr_size(void) const {
     return computed_sizes;
   }
 
-  const builder::dyn_var<T> get_value_at(std::vector<builder::static_var<int>*> indices) const {
-    //return expr1.get_value_at(indices) + expr2.get_value_at(indices);
-    // todo
+  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+    return expr1.get_value_at(indices) - expr2.get_value_at(indices);
   }
 };
 
 template<typename T>
-struct cmatrix_expr_hstack: public cmatrix_expr<T> {
+struct cmatrix_expr_dot: public cmatrix_expr<T> {
   const struct cmatrix_expr<T>& expr1;
   const struct cmatrix_expr<T>& expr2;
 
   std::vector<int> computed_sizes;
 
-  cmatrix_expr_hstack(const struct cmatrix_expr<T>& expr1, const struct cmatrix_expr<T>& expr2): 
+  cmatrix_expr_dot(const struct cmatrix_expr<T>& expr1, const struct cmatrix_expr<T>& expr2): 
       expr1(expr1), expr2(expr2) {
-    //computed_sizes = match_expr_sizes(expr1.get_expr_size(), expr2.get_expr_size());
+    std::vector<int> size1 = expr1.get_expr_size();
+    std::vector<int> size2 = expr2.get_expr_size();
+    assert(size1.size() == 2 && size2.size() == 2 && "dot product can only be performed on 2 dim arrays");
+    assert(size1[1] == size2[0] && "Dimensions should match for dot product");
+    computed_sizes.push_back(size1[0]);
+    computed_sizes.push_back(size2[1]);
   }
 
   const std::vector<int> get_expr_size(void) const {
     return computed_sizes;
   }
 
-  const builder::dyn_var<T> get_value_at(std::vector<builder::dyn_var<int>*> indices) const {
-    //return expr1.get_value_at(indices) + expr2.get_value_at(indices);
-    // todo
-  }
-};
+  const cscalar_expr<T>& create_accum(int expr1_dim, int inner_dim, int expr2_dim) const {
 
-template<typename T>
-struct cmatrix_expr_matmul: public cmatrix_expr<T> {
-  const struct cmatrix_expr<T>& expr1;
-  const struct cmatrix_expr<T>& expr2;
+    builder::static_var<int> dim1 = expr1_dim;
+    builder::static_var<int> idim = inner_dim;
+    builder::static_var<int> dim2 = expr2_dim;
 
-  std::vector<int> computed_sizes;
+    std::vector<builder::static_var<int>*> indices1 = {&dim1, &idim};
+    std::vector<builder::static_var<int>*> indices2 = {&idim, &dim2};
 
-  cmatrix_expr_matmul(const struct cmatrix_expr<T>& expr1, const struct cmatrix_expr<T>& expr2): 
-      expr1(expr1), expr2(expr2) {
-    //computed_sizes = match_expr_sizes(expr1.get_expr_size(), expr2.get_expr_size());
+    if (inner_dim == expr1.get_expr_size()[1] - 1) {
+      return expr1.get_value_at(indices1) * expr2.get_value_at(indices2);
+    }
+    return expr1.get_value_at(indices1) * expr2.get_value_at(indices2) + create_accum(expr1_dim, inner_dim+1, expr2_dim);
   }
 
-  const std::vector<int> get_expr_size(void) const {
-    return computed_sizes;
-  }
+  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+    builder::static_var<int> i = 0;
 
-  const builder::dyn_var<T> get_value_at(std::vector<builder::dyn_var<int>*> indices) const {
-    //return expr1.get_value_at(indices) + expr2.get_value_at(indices);
-    // todo
+    return create_accum(*indices[0], 0, *indices[1]);
   }
 };
 

@@ -6,11 +6,11 @@ using builder::dyn_var;
 using builder::static_var;
 
 void eep() {
-  SpatialAlgebra::cmatrix<double> a({1,2}), b({1,2}), c({1,2});
+  SpatialAlgebra::cmatrix<double> a({1,2}), b({2,1}), c({1,1});
 
   std::cout << "all\n";
 
-  c = a + b;
+  c = a * b;
 }
 
 int main(int argc, char* argv[]) {

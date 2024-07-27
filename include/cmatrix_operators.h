@@ -45,12 +45,18 @@ operator + (const T1& v1, const T2& v2) {
   return *new cmatrix_expr_add<typename is_acceptable_rhs_matrix<T1>::output_type>(is_acceptable_rhs_matrix<T1>::cast(v1), is_acceptable_rhs_matrix<T2>::cast(v2));
 }
 
-//template <typename T1, typename T2>
-//typename std::enable_if<is_acceptable_rhs_matrix<T2>::value, const cmatrix_expr<typename is_acceptable_rhs_matrix<T1>::output_type>&>::type
-//operator - (const T1& v1, const T2& v2) {
-//  return *new cmatrix_expr_sub<typename is_acceptable_rhs_matrix<T1>::output_type>(is_acceptable_rhs_matrix<T1>::cast(v1), is_acceptable_rhs_matrix<T2>::cast(v2));
-//}
-//
+template <typename T1, typename T2>
+typename std::enable_if<is_acceptable_rhs_matrix<T2>::value, const cmatrix_expr<typename is_acceptable_rhs_matrix<T1>::output_type>&>::type
+operator - (const T1& v1, const T2& v2) {
+  return *new cmatrix_expr_sub<typename is_acceptable_rhs_matrix<T1>::output_type>(is_acceptable_rhs_matrix<T1>::cast(v1), is_acceptable_rhs_matrix<T2>::cast(v2));
+}
+
+template <typename T1, typename T2>
+typename std::enable_if<is_acceptable_rhs_matrix<T2>::value, const cmatrix_expr<typename is_acceptable_rhs_matrix<T1>::output_type>&>::type
+operator * (const T1& v1, const T2& v2) {
+  return *new cmatrix_expr_dot<typename is_acceptable_rhs_matrix<T1>::output_type>(is_acceptable_rhs_matrix<T1>::cast(v1), is_acceptable_rhs_matrix<T2>::cast(v2));
+}
+
 //template <typename T1, typename T2>
 //typename std::enable_if<is_acceptable_rhs_matrix<T2>::value, const cmatrix_expr<typename is_acceptable_rhs_matrix<T1>::output_type>&>::type
 //operator * (const T1& v1, const T2& v2) {

@@ -82,6 +82,7 @@ struct cscalar {
     // need to trigger get_value_at calls for each sub-expr inside expr tree
     // to materialize AST into code
     m_value = rhs.get_value_at();
+    is_constant = false;
   }
 
   void operator=(const T& value) {
