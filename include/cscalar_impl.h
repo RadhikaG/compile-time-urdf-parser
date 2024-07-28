@@ -3,6 +3,9 @@
 #include "builder/dyn_var.h"
 #include "builder/static_var.h"
 
+using builder::dyn_var;
+using builder::static_var;
+
 namespace SpatialAlgebra {
 
 template <typename T>
@@ -11,7 +14,13 @@ struct cscalar;
 // Base class for all expressions that can appear on the RHS of a =
 template <typename T>
 struct cscalar_expr {
-  virtual const builder::dyn_var<T> get_value_at() const { return 0; }
+  // each cscalar_expr is only created once and these values remain unchanged
+  int is_constant;
+  int is_zero;
+  int is_one;
+  T constant_val;
+
+  virtual const dyn_var<T> get_value_at() const { return 0; }
   operator cscalar<T>() const {
     return get_value_at();
   }
@@ -26,13 +35,13 @@ struct cscalar_expr_leaf;
 // T is arith type: int, float, double
 template<typename T>
 struct cscalar {
-  builder::dyn_var<T> m_value;
+  dyn_var<T> m_value;
 
   // compile time optimization fields
-  builder::static_var<int> is_constant = false;
-  builder::static_var<int> is_zero = false;
-  builder::static_var<int> is_one = false;
-  builder::static_var<T> constant_val = 0;
+  static_var<int> is_constant = false;
+  static_var<int> is_zero = false;
+  static_var<int> is_one = false;
+  static_var<T> constant_val = 0;
   //int is_constant = false;
   //int is_zero = false;
   //int is_one = false;
@@ -57,20 +66,20 @@ struct cscalar {
   cscalar(T value) : constant_val(value) {
     std::cout << "value ctor\n";
     is_constant = true;
-    //constant_val = value;
+    constant_val = value;
     if (value == 0)
       is_zero = true;
     else if (value == 1)
       is_one = true;
   }
 
-  cscalar(builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
+  cscalar(dyn_var<T>& dyn_val) : m_value(dyn_val) {
     is_constant = false;
     is_zero = false;
     is_one = false;
   }
 
-  cscalar(const builder::dyn_var<T>& dyn_val) : m_value(dyn_val) {
+  cscalar(const dyn_var<T>& dyn_val) : m_value(dyn_val) {
     is_constant = false;
     is_zero = false;
     is_one = false;
@@ -82,7 +91,6 @@ struct cscalar {
     // need to trigger get_value_at calls for each sub-expr inside expr tree
     // to materialize AST into code
     m_value = rhs.get_value_at();
-    is_constant = false;
   }
 
   void operator=(const T& value) {
@@ -124,7 +132,7 @@ typedef cscalar<double> cscalard;
 //  T m_value;
 //  cscalar_expr_const (const T& value): m_value(value) {}
 //  
-//  const builder::dyn_var<T> get_value_at() const {
+//  const dyn_var<T> get_value_at() const {
 //    // Always return the same constant value
 //    return m_value;
 //  }
@@ -134,33 +142,22 @@ typedef cscalar<double> cscalard;
 template <typename T>
 struct cscalar_expr_leaf: public cscalar_expr<T> {
   const struct cscalar<T>& m_cscalar;
-  cscalar_expr_leaf (const T& value): m_cscalar(value) {}
-  cscalar_expr_leaf (const struct cscalar<T>& value): m_cscalar(value) {}
+  cscalar_expr_leaf (const T& value): m_cscalar(value) { set_compile_time_opt(); }
+  cscalar_expr_leaf (const struct cscalar<T>& value): m_cscalar(value) { set_compile_time_opt(); }
+
+  void set_compile_time_opt() {
+    cscalar_expr<T>::is_constant = m_cscalar.is_constant;
+    cscalar_expr<T>::constant_val = m_cscalar.constant_val;
+    cscalar_expr<T>::is_zero = m_cscalar.is_zero;
+    cscalar_expr<T>::is_one = m_cscalar.is_one;
+  }
   
-  const builder::dyn_var<T> get_value_at() const {
-    if (m_cscalar.is_constant) {
-      return m_cscalar.constant_val;        
-    }
-    return const_cast<builder::dyn_var<T>&>(m_cscalar.m_value);
+  const dyn_var<T> get_value_at() const {
+    return const_cast<dyn_var<T>&>(m_cscalar.m_value);
   }
 };
 
 // Non leaf RHS expr classes
-
-// Equality
-template <typename T>
-struct cscalar_expr_eq: public cscalar_expr<T> {
-  const struct cscalar_expr<T>& expr1;
-  const struct cscalar_expr<T>& expr2;
-
-  cscalar_expr_eq(const struct cscalar_expr<T>& expr1, const struct cscalar_expr<T>& expr2):
-    expr1(expr1), expr2(expr2) {
-  }
-
-  const builder::dyn_var<T> get_value_at() const {
-    return expr1.get_value_at() == expr2.get_value_at();
-  }
-};
 
 // Addition
 template <typename T>
@@ -172,7 +169,14 @@ struct cscalar_expr_add: public cscalar_expr<T> {
     expr1(expr1), expr2(expr2) {
   }
 
-  const builder::dyn_var<T> get_value_at() const {
+  const dyn_var<T> get_value_at() const {
+    if (expr1.is_zero && expr2.is_zero)
+      return 0;
+    if (expr1.is_zero)
+      return expr2.get_value_at();
+    if (expr2.is_zero)
+      return expr1.get_value_at();
+
     return expr1.get_value_at() + expr2.get_value_at();
   }
 };
@@ -187,7 +191,7 @@ struct cscalar_expr_sub: public cscalar_expr<T> {
     expr1(expr1), expr2(expr2) {
   }
 
-  const builder::dyn_var<T> get_value_at() const {
+  const dyn_var<T> get_value_at() const {
     return expr1.get_value_at() - expr2.get_value_at();
   }
 };
@@ -202,7 +206,7 @@ struct cscalar_expr_mul: public cscalar_expr<T> {
     expr1(expr1), expr2(expr2) {
   }
 
-  const builder::dyn_var<T> get_value_at() const {
+  const dyn_var<T> get_value_at() const {
     return expr1.get_value_at() * expr2.get_value_at();
   }
 };
@@ -216,7 +220,7 @@ struct cscalar_expr_div: public cscalar_expr<T> {
     expr1(expr1), expr2(expr2) {
   }
 
-  const builder::dyn_var<T> get_value_at() const {
+  const dyn_var<T> get_value_at() const {
     return expr1.get_value_at() / expr2.get_value_at();
   }
 };

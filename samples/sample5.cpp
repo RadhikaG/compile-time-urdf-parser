@@ -7,10 +7,9 @@ using builder::static_var;
 
 void eep() {
   SpatialAlgebra::cmatrix<double> a({1,2}), b({2,1}), c({1,1});
+  SpatialAlgebra::cmatrix<double> d({1,1});
 
-  std::cout << "all\n";
-
-  c = a * b;
+  c = a * b + d;
 }
 
 int main(int argc, char* argv[]) {

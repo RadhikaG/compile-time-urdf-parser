@@ -5,6 +5,9 @@
 #include "builder/dyn_var.h"
 #include <vector>
 
+using builder::dyn_var;
+using builder::static_var;
+
 namespace SpatialAlgebra {
 
 std::vector<int> match_expr_sizes(std::vector<int>, std::vector<int>);
@@ -12,7 +15,7 @@ std::vector<int> match_expr_sizes(std::vector<int>, std::vector<int>);
 // Base class for all expressions that can appear on the RHS of a =
 template<typename T>
 struct cmatrix_expr {
-  virtual const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const { return *new cscalar_expr_leaf<T>(0); }
+  virtual const cscalar_expr<T>& get_value_at(std::vector<static_var<int>*> indices) const { return *new cscalar_expr_leaf<T>(0); }
   virtual const std::vector<int> get_expr_size(void) const {
     return {};
   }
@@ -37,7 +40,7 @@ struct cmatrix {
   //// statically known sparsity tracking
   //// we resolve as many zeros at compile-time as possible
   //// for skipping zeros during matmul
-  //std::vector<builder::static_var<int>*> m_zero_buffer;
+  //std::vector<static_var<int>*> m_zero_buffer;
 
   cmatrix(const std::vector<int>& sizes):
       m_dims(sizes.size()), m_sizes(std::move(sizes)) {
@@ -69,7 +72,7 @@ struct cmatrix {
     }
   }
 
-  void unroll(std::vector<builder::static_var<int>*> indices, const cmatrix_expr<T>& rhs) {
+  void unroll(std::vector<static_var<int>*> indices, const cmatrix_expr<T>& rhs) {
     unsigned int index = indices.size();
 
     if (index == m_sizes.size()) {
@@ -80,7 +83,7 @@ struct cmatrix {
       return;
     }
 
-    builder::static_var<int> i = 0;
+    static_var<int> i = 0;
     indices.push_back(&i);
 
     for (; i < m_sizes[index]; i = i+1) {
@@ -93,7 +96,7 @@ struct cmatrix {
     unroll({}, rhs);
   }
 
-  int compute_flat_index(std::vector<builder::static_var<int>*> indices, unsigned int dim = -1) const {
+  int compute_flat_index(std::vector<static_var<int>*> indices, unsigned int dim = -1) const {
     if (dim == -1)
       dim = m_sizes.size() - 1;
     if (dim == 0)
@@ -118,7 +121,7 @@ struct cmatrix_expr_leaf: public cmatrix_expr<T> {
   const struct cmatrix<T>& m_matrix;
   cmatrix_expr_leaf(const struct cmatrix<T>& matrix): m_matrix(matrix) {}
 
-  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+  const cscalar_expr<T>& get_value_at(std::vector<static_var<int>*> indices) const {
     return *new cscalar_expr_leaf<T>(*(m_matrix.m_buffer[m_matrix.compute_flat_index(indices)]));
   }
 
@@ -145,7 +148,7 @@ struct cmatrix_expr_add: public cmatrix_expr<T> {
     return computed_sizes;
   }
 
-  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+  const cscalar_expr<T>& get_value_at(std::vector<static_var<int>*> indices) const {
     return expr1.get_value_at(indices) + expr2.get_value_at(indices);
   }
 };
@@ -166,7 +169,7 @@ struct cmatrix_expr_sub: public cmatrix_expr<T> {
     return computed_sizes;
   }
 
-  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
+  const cscalar_expr<T>& get_value_at(std::vector<static_var<int>*> indices) const {
     return expr1.get_value_at(indices) - expr2.get_value_at(indices);
   }
 };
@@ -194,12 +197,12 @@ struct cmatrix_expr_dot: public cmatrix_expr<T> {
 
   const cscalar_expr<T>& create_accum(int expr1_dim, int inner_dim, int expr2_dim) const {
 
-    builder::static_var<int> dim1 = expr1_dim;
-    builder::static_var<int> idim = inner_dim;
-    builder::static_var<int> dim2 = expr2_dim;
+    static_var<int> dim1 = expr1_dim;
+    static_var<int> idim = inner_dim;
+    static_var<int> dim2 = expr2_dim;
 
-    std::vector<builder::static_var<int>*> indices1 = {&dim1, &idim};
-    std::vector<builder::static_var<int>*> indices2 = {&idim, &dim2};
+    std::vector<static_var<int>*> indices1 = {&dim1, &idim};
+    std::vector<static_var<int>*> indices2 = {&idim, &dim2};
 
     if (inner_dim == expr1.get_expr_size()[1] - 1) {
       return expr1.get_value_at(indices1) * expr2.get_value_at(indices2);
@@ -207,8 +210,8 @@ struct cmatrix_expr_dot: public cmatrix_expr<T> {
     return expr1.get_value_at(indices1) * expr2.get_value_at(indices2) + create_accum(expr1_dim, inner_dim+1, expr2_dim);
   }
 
-  const cscalar_expr<T>& get_value_at(std::vector<builder::static_var<int>*> indices) const {
-    builder::static_var<int> i = 0;
+  const cscalar_expr<T>& get_value_at(std::vector<static_var<int>*> indices) const {
+    static_var<int> i = 0;
 
     return create_accum(*indices[0], 0, *indices[1]);
   }
