@@ -16,3 +16,10 @@ LIBRARY_OBJS=$(subst $(SRC_DIR),$(BUILD_DIR),$(LIBRARY_SRCS:.cpp=.o))
 
 EIGEN_DIR=$(PWD)/deps/eigen
 INCLUDES=$(wildcard $(INCLUDE_DIR)/*.h)
+
+PINOCCHIO_DIR=$(PWD)/deps/pinocchio
+PINOCCHIO_DEPS=$(wildcard $(PINOCCHIO_DIR)/src/*) $(wildcard $(PINOCCHIO_DIR)/include/*) 
+
+SCRIPTS_DIR=$(PWD)/scripts
+SCRIPTS_SRCS=$(wildcard $(SCRIPTS_DIR)/*.cpp)
+SCRIPTS=$(subst $(SCRIPTS_DIR),$(BUILD_DIR)/scripts,$(SCRIPTS_SRCS:.cpp=))

@@ -5,3 +5,7 @@
 [submodule "deps/eigen"]
 	path = deps/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "deps/pinocchio"]
+	path = deps/pinocchio
+	url = git@github.com:stack-of-tasks/pinocchio.git
+	branch = devel
