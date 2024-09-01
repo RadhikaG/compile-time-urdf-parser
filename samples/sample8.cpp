@@ -5,6 +5,7 @@
 #include "Eigen/Dense"
 #include "builder/static_var.h"
 #include "builder/array.h"
+#include "pinocchio/multibody/joint/joint-collection.hpp"
 #include "pinocchio/multibody/model.hpp"
 #include "pinocchio/parsers/urdf.hpp"
 #include "assert.h"
@@ -15,8 +16,8 @@ using builder::dyn_arr;
 
 using namespace pinocchio;
 
-static const char eigen_Xmat_t_name[] = "Eigen::Matrix6d";
-static const char eigen_vec_t_name[] = "Eigen::Vector15d";
+static const char eigen_Xmat_t_name[] = "Eigen::MatrixXd";
+static const char eigen_vec_t_name[] = "Eigen::VectorXd";
 
 using eigen_Xmat_t = builder::name<eigen_Xmat_t_name>;
 using eigen_vectorXd_t = builder::name<eigen_vec_t_name>;
@@ -39,98 +40,85 @@ public:
   dyn_var(const dyn_var &t) : dyn_var_impl((builder)t) {}
   dyn_var() : dyn_var_impl<eigen_Xmat_t>() {} 
 
-
+  //dyn_var<double& (Eigen::MatrixXd::*)(Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
+  dyn_var<double& (Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
 };
 }
 
-template<
-  typename Scalar,
-  int Options,
-  template<typename, int>
-  class JointCollectionTpl
->
-struct forwardKinematicsCodeGen {
-  typedef ModelTpl<Scalar, Options, JointCollectionTpl> Model;
+dyn_var<eigen_Xmat_t[]> X_T = builder::as_global("X_T");
 
-  const Model &model;
-  dyn_arr<eigen_Xmat_t> X_T;
-
-  forwardKinematicsCodeGen(Model &model) : model(model) {}
-
-  void set_X_T() {
-    X_T.set_size(model.njoints);
+void set_X_T(const Model &model) {
+    //X_T.set_size(model.njoints);
 
     typedef typename Model::JointIndex JointIndex;
     static_var<JointIndex> i = 1;
 
     for (; i < (JointIndex)model.njoints; i = i+1) {
-      X_T[i] << model.jointPlacements[i]; 
+      X_T[i] = model.jointPlacements[i]; 
     }
-  }
+}
 
-  void jcalc(dyn_var<eigen_Xmat_t> & Xmat, size_t i, double q_i) {
-    dyn_var<double> sinq = runtime::sin(q_i);
-    dyn_var<double> cosq = runtime::cos(q_i);
+
+dyn_var<eigen_Xmat_t> fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
+  dyn_var<eigen_Xmat_t[]> X_J, X_0;
+  
+  typedef typename Model::JointIndex JointIndex;
+  static_var<JointIndex> i = 1;
+
+  for (; i < (JointIndex)model.njoints; i = i+1) {
+    dyn_var<double> sinq = runtime::sin(q[i]);
+    dyn_var<double> cosq = runtime::cos(q[i]);
 
     std::string joint_name = model.joints[i].shortname();
+    std::cout << joint_name << "\n";
     if (joint_name.find("JointModelR") != std::string::npos) {
       char axis = joint_name.back();
       if (axis == 'X') {
-        Xmat.coeffRef(1, 1) = cosq;
-        Xmat.coeffRef(1, 2) = -sinq;
-        Xmat.coeffRef(2, 1) = sinq;
-        Xmat.coeffRef(2, 2) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 1) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 2) = -sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 1) = sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 2) = cosq;
       } 
       else if (axis == 'Y') {
-        Xmat.coeffRef(0, 0) = cosq;
-        Xmat.coeffRef(0, 2) = sinq;
-        Xmat.coeffRef(2, 0) = -sinq;
-        Xmat.coeffRef(2, 2) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 0) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 2) = sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 0) = -sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 2) = cosq;
       } 
       else if (axis == 'Z') {
-        Xmat.coeffRef(0, 0) = cosq;
-        Xmat.coeffRef(0, 1) = -sinq;
-        Xmat.coeffRef(1, 0) = sinq;
-        Xmat.coeffRef(1, 1) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 0) = cosq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 1) = -sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 0) = sinq;
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 1) = cosq;
       } 
     }
     else if (joint_name.find("JointModelP") != std::string::npos) {
-      assert(false && "Not yet implemented");
+      //assert(false && "Not yet implemented");
     }
     else {
-      assert(false && "Joint type unsupported");
+      //assert(false && "Joint type unsupported");
     }
   }
 
-  dyn_var<eigen_Xmat_t> algo(dyn_var<eigen_vectorXd_t &> q) {
-    dyn_var<eigen_Xmat_t[model.njoints]> X_J, X_0;
-    
-    typedef typename Model::JointIndex JointIndex;
-    static_var<JointIndex> i = 1;
+  static_var<JointIndex> parent;
+  dyn_var<eigen_Xmat_t> X_pi;
 
-    for (; i < (JointIndex)model.njoints; i = i+1) {
-      jcalc(X_J[i], i, q[i]);
+  i = 1;
+  for (; i < (JointIndex)model.njoints; i = i+1) {
+    X_pi = X_T[i] * X_J[i];
+
+    parent = model.parents[i];
+    if (parent > 0) {
+      X_0[i] = X_0[parent] * X_pi;
     }
-
-    static_var<JointIndex> parent;
-    dyn_var<eigen_Xmat_t> X_pi;
-
-    i = 1;
-    for (; i < (JointIndex)model.njoints; i = i+1) {
-      X_pi = X_T[i] * X_J[i];
-
-      parent = model.parents(i);
-      if (parent > 0) {
-        X_0[i] = X_0[parent] * X_pi;
-      }
-      else {
-        X_0[i] = X_pi;
-      }
+    else {
+      X_0[i] = X_pi;
     }
-
-    return X_0[model.njoints-1];
   }
-};
+
+  return X_0[model.njoints-1];
+}
+
 
 int main(int argc, char* argv[]) {
   const std::string urdf_filename = argv[1];
@@ -139,10 +127,8 @@ int main(int argc, char* argv[]) {
   Model model;
   pinocchio::urdf::buildModel(urdf_filename, model);
 
-  forwardKinematicsCodeGen fkcg(model);
-
   builder::builder_context context;
-  auto ast = context.extract_function_ast(fkcg.set_X_T, "fk");
+  auto ast = context.extract_function_ast(fk, "fk", model);
   ast->dump(std::cout, 0);
   block::c_code_generator::generate_code(ast, std::cout, 0);
 }
