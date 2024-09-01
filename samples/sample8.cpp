@@ -48,14 +48,23 @@ public:
 dyn_var<eigen_Xmat_t[]> X_T = builder::as_global("X_T");
 
 void set_X_T(const Model &model) {
-    //X_T.set_size(model.njoints);
+  //X_T.set_size(model.njoints);
 
-    typedef typename Model::JointIndex JointIndex;
-    static_var<JointIndex> i = 1;
+  typedef typename Model::JointIndex JointIndex;
+  static_var<JointIndex> i = 1;
 
-    for (; i < (JointIndex)model.njoints; i = i+1) {
-      X_T[i] = model.jointPlacements[i]; 
+  static_var<int> r = 0;
+  static_var<int> c = 0;
+
+  for (; i < (JointIndex)model.njoints; i = i+1) {
+    Eigen::Matrix<double, 6, 6> blah = model.jointPlacements[i];
+
+    for (r = 0; r < 6; r = r + 1) {
+      for (c = 0; c < 6; c = c + 1) {
+        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
+      }
     }
+  }
 }
 
 
@@ -128,7 +137,8 @@ int main(int argc, char* argv[]) {
   pinocchio::urdf::buildModel(urdf_filename, model);
 
   builder::builder_context context;
-  auto ast = context.extract_function_ast(fk, "fk", model);
+  auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
+  //auto ast = context.extract_function_ast(fk, "fk", model);
   ast->dump(std::cout, 0);
   block::c_code_generator::generate_code(ast, std::cout, 0);
 }
