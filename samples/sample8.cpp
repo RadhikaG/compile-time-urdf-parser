@@ -42,10 +42,11 @@ public:
 
   //dyn_var<double& (Eigen::MatrixXd::*)(Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
   dyn_var<double& (Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
+
 };
 }
 
-dyn_var<eigen_Xmat_t[]> X_T = builder::as_global("X_T");
+dyn_var<eigen_Xmat_t*> X_T = builder::as_global("X_T");
 
 void set_X_T(const Model &model) {
   //X_T.set_size(model.njoints);
@@ -61,52 +62,82 @@ void set_X_T(const Model &model) {
 
     for (r = 0; r < 6; r = r + 1) {
       for (c = 0; c < 6; c = c + 1) {
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
+        //((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
+        X_T[i].coeffRef(r, c) = blah.coeffRef(r, c);
       }
     }
   }
 }
 
+static int get_jtype(const Model &model, Model::JointIndex i) {
+  std::string joint_name = model.joints[i].shortname();
+
+  bool is_revolute = joint_name.find("JointModelR") != std::string::npos;
+  bool is_prismatic = joint_name.find("JointModelP") != std::string::npos;
+
+  if (is_revolute)
+    return 'R';
+  if (is_prismatic)
+    return 'P';
+  else
+    return 'N';
+}
+
+static int get_revolute_axis(const Model &model, Model::JointIndex i) {
+  std::string joint_name = model.joints[i].shortname();
+  char axis = joint_name.back();
+
+  switch(axis) {
+    case 'X': return 'X';
+    case 'Y': return 'Y';
+    case 'Z': return 'Z';
+    default: assert(false && "should never happen");
+  }
+}
 
 dyn_var<eigen_Xmat_t> fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
-  dyn_var<eigen_Xmat_t[]> X_J, X_0;
+  dyn_var<eigen_Xmat_t*> X_J, X_0;
   
   typedef typename Model::JointIndex JointIndex;
   static_var<JointIndex> i = 1;
 
-  for (; i < (JointIndex)model.njoints; i = i+1) {
-    dyn_var<double> sinq = runtime::sin(q[i]);
-    dyn_var<double> cosq = runtime::cos(q[i]);
+  static_var<int> jtype;
+  static_var<int> axis;
 
-    std::string joint_name = model.joints[i].shortname();
-    std::cout << joint_name << "\n";
-    if (joint_name.find("JointModelR") != std::string::npos) {
-      char axis = joint_name.back();
+  for (; i < (JointIndex)model.njoints; i = i+1) {
+    dyn_var<double> sinq = runtime::sin((dyn_var<double>)(builder::cast)q[i]);
+    dyn_var<double> cosq = runtime::cos((dyn_var<double>)(builder::cast)q[i]);
+
+    jtype = get_jtype(model, i);
+
+    if (jtype == 'R') {
+      axis = get_revolute_axis(model, i);
       if (axis == 'X') {
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 1) = cosq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 2) = -sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 1) = sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 2) = cosq;
+        //((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 1) = cosq;
+        X_J[i].coeffRef(1, 1) = cosq;
+        X_J[i].coeffRef(1, 2) = -sinq;
+        X_J[i].coeffRef(2, 1) = sinq;
+        X_J[i].coeffRef(2, 2) = cosq;
       } 
       else if (axis == 'Y') {
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 0) = cosq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 2) = sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 0) = -sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(2, 2) = cosq;
+        X_J[i].coeffRef(0, 0) = cosq;
+        X_J[i].coeffRef(0, 2) = sinq;
+        X_J[i].coeffRef(2, 0) = -sinq;
+        X_J[i].coeffRef(2, 2) = cosq;
       } 
       else if (axis == 'Z') {
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 0) = cosq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(0, 1) = -sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 0) = sinq;
-        ((dyn_var<eigen_Xmat_t>)(builder::cast)X_J[i]).coeffRef(1, 1) = cosq;
+        X_J[i].coeffRef(0, 0) = cosq;
+        X_J[i].coeffRef(0, 1) = -sinq;
+        X_J[i].coeffRef(1, 0) = sinq;
+        X_J[i].coeffRef(1, 1) = cosq;
       } 
     }
-    else if (joint_name.find("JointModelP") != std::string::npos) {
-      //assert(false && "Not yet implemented");
-    }
-    else {
-      //assert(false && "Joint type unsupported");
-    }
+    //else if (is_prismatic) {
+    //  //assert(false && "Not yet implemented");
+    //}
+    //else {
+    //  //assert(false && "Joint type unsupported");
+    //}
   }
 
   static_var<JointIndex> parent;
@@ -137,8 +168,8 @@ int main(int argc, char* argv[]) {
   pinocchio::urdf::buildModel(urdf_filename, model);
 
   builder::builder_context context;
-  auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
-  //auto ast = context.extract_function_ast(fk, "fk", model);
+  //auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
+  auto ast = context.extract_function_ast(fk, "fk", model);
   ast->dump(std::cout, 0);
   block::c_code_generator::generate_code(ast, std::cout, 0);
 }
