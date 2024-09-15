@@ -7,8 +7,7 @@
 #include "Eigen/Dense"
 #include "builder/static_var.h"
 #include "builder/lib/utils.h"
-#include "builder/array.h"
-// ignore unused header warning in IDE
+// ignore unused header warning in IDE, this is needed
 #include "pinocchio/multibody/joint/joint-collection.hpp"
 #include "pinocchio/multibody/model.hpp"
 #include "pinocchio/parsers/urdf.hpp"
@@ -47,6 +46,7 @@ public:
   //dyn_var<double& (Eigen::MatrixXd::*)(Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
   dyn_var<double& (Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
   dyn_var<double& (Eigen::Index, Eigen::Index)> block = as_member(this, "block<3,3>"); // remove template params later
+  dyn_var<void (void)> setZero = as_member(this, "setZero");
 };
 
 template <>
@@ -68,6 +68,10 @@ public:
 };
 }
 
+// We do our math the same way pinocchio does it, indexing is transposed from
+// featherstone, and matmul order is reversed.
+// This is because Eigen is col major.
+
 dyn_var<eigen_Xmat_t[]> X_T = builder::as_global("X_T");
 
 void set_X_T(const Model &model) {
@@ -81,10 +85,10 @@ void set_X_T(const Model &model) {
     Eigen::Matrix<double, 6, 6> tmp_cst_mat = model.jointPlacements[i];
 
     builder::annotate(std::string(model.names[i]));
-    for (r = 0; r < 6; r = r + 1) {
-      for (c = 0; c < 6; c = c + 1) {
+    for (c = 0; c < 6; c = c + 1) {
+      for (r = 0; r < 6; r = r + 1) {
         //((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
-        X_T[i].coeffRef(r, c) = tmp_cst_mat.coeffRef(r, c);
+        X_T[i].coeffRef(c, r) = tmp_cst_mat.coeffRef(c, r);
       }
     }
   }
@@ -128,11 +132,13 @@ dyn_var<eigen_Xmat_t> fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
   static_var<int> axis;
 
   for (; i < (JointIndex)model.njoints; i = i+1) {
-    dyn_var<double> sinq = runtime::sin((dyn_var<double>)(builder::cast)q(i));
-    dyn_var<double> cosq = runtime::cos((dyn_var<double>)(builder::cast)q(i));
+    dyn_var<double> sinq = runtime::sin((dyn_var<double>)(builder::cast)q(i-1));
+    dyn_var<double> cosq = runtime::cos((dyn_var<double>)(builder::cast)q(i-1));
 
     jtype = get_jtype(model, i);
     axis = get_joint_axis(model, i);
+
+    X_J[i].setZero();
 
     builder::annotate(std::string(model.names[i]));
     if (jtype == 'R') {
@@ -176,27 +182,26 @@ dyn_var<eigen_Xmat_t> fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
         X_J[i].coeffRef(3+1, 3+1) = cosq;
       } 
       // r = 0
-      X_J[i].coeffRef(3, 0) = 0;
     }
     else if (jtype == 'P') {
       // negative r-cross, opp signs of featherstone 2.23
       if (axis == 'X') {
-        X_J[i].coeffRef(1, 2) = q(i);
-        X_J[i].coeffRef(2, 1) = -q(i);
+        X_J[i].coeffRef(1, 2) = -q(i-1);
+        X_J[i].coeffRef(2, 1) = q(i-1);
       }
       else if (axis == 'Y') {
-        X_J[i].coeffRef(0, 2) = -q(i);
-        X_J[i].coeffRef(2, 0) = q(i);
+        X_J[i].coeffRef(0, 2) = q(i-1);
+        X_J[i].coeffRef(2, 0) = -q(i-1);
       }
       else if (axis == 'Z') {
-        X_J[i].coeffRef(0, 1) = q(i);
-        X_J[i].coeffRef(1, 0) = -q(i);
+        X_J[i].coeffRef(0, 1) = -q(i-1);
+        X_J[i].coeffRef(1, 0) = q(i-1);
       }
       // E = Identity 
       X_J[i].coeffRef(0, 0) = 1;
       X_J[i].coeffRef(1, 1) = 1;
       X_J[i].coeffRef(2, 2) = 1;
-      // symm
+      // symm E
       X_J[i].coeffRef(3+0, 3+0) = 1;
       X_J[i].coeffRef(3+1, 3+1) = 1;
       X_J[i].coeffRef(3+2, 3+2) = 1;
