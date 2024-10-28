@@ -30,8 +30,8 @@ struct HwFeatures {
 
 template<typename Scalar>
 struct Matrix_expr {
-  virtual const builder::builder get_value() const;
-  virtual const builder::builder get_value_at(size_t i, size_t j) const;
+  //virtual const builder::builder get_value() const;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
 };
 
 template<typename Scalar>
@@ -224,31 +224,34 @@ struct Storage {
 
 template<typename Scalar>
 struct Translation_expr : Matrix_expr<Scalar> {
-  virtual const builder::builder get_x() const;
-  virtual const builder::builder get_y() const;
-  virtual const builder::builder get_z() const;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
+  virtual const builder::builder get_x() const = 0;
+  virtual const builder::builder get_y() const = 0;
+  virtual const builder::builder get_z() const = 0;
 
-  virtual int has_x() const;
-  virtual int has_y() const;
-  virtual int has_z() const;
+  virtual int has_x() const = 0;
+  virtual int has_y() const = 0;
+  virtual int has_z() const = 0;
 };
 
 template<typename Scalar>
 struct Rotation_expr : Matrix_expr<Scalar> {
-  virtual int is_nonzero(size_t i, size_t j) const;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
+  virtual int is_nonzero(size_t i, size_t j) const = 0;
 
-  virtual int has_x() const;
-  virtual int has_y() const;
-  virtual int has_z() const;
+  virtual int has_x() const = 0;
+  virtual int has_y() const = 0;
+  virtual int has_z() const = 0;
 };
 
 template<typename Scalar>
 struct Xform_expr : Matrix_expr<Scalar> {
-  virtual const Rotation_expr<Scalar> get_rotation_expr() const;
-  virtual const Translation_expr<Scalar> get_translation_expr() const;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
+  virtual const Rotation_expr<Scalar> get_rotation_expr() const = 0;
+  virtual const Translation_expr<Scalar> get_translation_expr() const = 0;
 
-  virtual int has_rotation() const;
-  virtual int has_translation() const;
+  virtual int has_rotation() const = 0;
+  virtual int has_translation() const = 0;
 };
 
 
@@ -362,9 +365,9 @@ struct Rotation {
   Rotation() : storage(3, 3, Storage<Scalar>::SPARSE_UNROLLED), 
       is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
     // initializing to identity
-    storage(0, 0) = 1;
-    storage(1, 1) = 1;
-    storage(2, 2) = 1;
+    storage.set_constant_entry(0, 0, 1);
+    storage.set_constant_entry(1, 1, 1);
+    storage.set_constant_entry(2, 2, 1);
   }
 
   void set_revolute_axis(char axis) {
@@ -489,6 +492,11 @@ struct Translation_expr_leaf : public Translation_expr<Scalar> {
 
   Translation_expr_leaf(const struct Translation<Scalar>& trans) : m_trans(trans) {}
 
+  const builder::builder get_value_at(size_t i, size_t j) const {
+    assertm(false, "todo");
+    return get_x();
+  }
+
   const builder::builder get_x() const {
     return m_trans.get_x();
   }
@@ -517,6 +525,11 @@ struct Translation_expr_add : public Translation_expr<Scalar> {
 
   Translation_expr_add(const struct Translation_expr<Scalar>& expr1, const struct Translation_expr<Scalar>& expr2) :
     expr1(expr1), expr2(expr2) {}
+
+  const builder::builder get_value_at(size_t i, size_t j) const {
+    assertm(false, "todo");
+    return get_x();
+  }
 
   const builder::builder get_x() const {
     return expr1.get_x() + expr2.get_x();
@@ -608,11 +621,16 @@ struct Xform_expr_leaf : public Xform_expr<Scalar> {
 
   Xform_expr_leaf(const struct Xform<Scalar>& xform) : m_xform(xform) {}
 
+  const builder::builder get_value_at(size_t i, size_t j) const {
+    assertm(false, "todo");
+    return m_xform.trans.get_x();
+  }
+
   const Rotation_expr<Scalar> get_rotation_expr() const {
-    return *new Rotation_expr_leaf<Scalar>(m_xform.rot);
+    return new Rotation_expr_leaf<Scalar>(m_xform.rot);
   }
   const Translation_expr<Scalar> get_translation_expr() const {
-    return *new Translation_expr_leaf<Scalar>(m_xform.trans);
+    return new Translation_expr_leaf<Scalar>(m_xform.trans);
   }
 
   int has_rotation() const {
@@ -630,6 +648,11 @@ struct Xform_expr_mul : public Xform_expr<Scalar> {
 
   Xform_expr_mul(const struct Xform_expr<Scalar>& expr1, const struct Xform_expr<Scalar>& expr2) :
     expr1(expr1), expr2(expr2) {}
+
+  const builder::builder get_value_at(size_t i, size_t j) const {
+    assertm(false, "todo");
+    return expr1.get_translation_expr()->get_x();
+  }
 
   const Rotation_expr<Scalar> get_rotation_expr() const {
     return expr1.get_rotation_expr() * expr2.get_rotation_expr();
