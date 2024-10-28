@@ -1,19 +1,21 @@
 #ifndef SPATIALALGEBRA_H
 #define SPATIALALGEBRA_H
 
-#include "cscalar_impl.h"
-#include "cmatrix_impl.h"
-#include "cscalar_operators.h"
-#include "cmatrix_operators.h"
+#include "xform_impl.h"
+#include "xform_operators.h"
+
 #include "blocks/extract_cuda.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
+#include "builder/builder_dynamic.h"
 
 namespace SpatialAlgebra {
 
 template <typename F, typename...OtherArgs>
 void generate_spatial_algebra_program(F func_input, std::string fname, std::ostream &oss, OtherArgs...args) {
 	builder::builder_context ctx;
+    ctx.dynamic_use_cxx = true;
+    ctx.feature_unstructured = true;
 #ifdef ENABLE_D2X
 	ctx.enable_d2x = true;
 #endif

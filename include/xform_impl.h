@@ -1,6 +1,5 @@
 #ifndef XFORM_IMPL_H
 #define XFORM_IMPL_H
-#include "forward_declarations.h"
 #include "builder/static_var.h"
 #include "builder/dyn_var.h"
 #include <unordered_map>
@@ -29,6 +28,31 @@ struct HwFeatures {
   size_t n_threads;
 };
 
+template<typename Scalar>
+struct Matrix_expr {
+  virtual const builder::builder get_value() const;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const;
+};
+
+template<typename Scalar>
+struct SparseEntry {
+  dyn_var<Scalar> dyn_entry;
+  static_var<Scalar> static_entry;
+  static_var<int> is_constant;
+
+  SparseEntry() : static_entry(0), is_constant(true) {}
+
+  void operator=(Scalar val) {
+    is_constant = true;
+    static_entry = val;
+  }
+
+  void operator=(const dyn_var<Scalar> &val) {
+    is_constant = false;
+    dyn_entry = val;
+  }
+};
+
 // Design intentions: 
 // * Abstract away matrix representation from matrix types (Rotation, Translation,
 // Xform, etc.)
@@ -50,7 +74,7 @@ struct Storage {
   //dyn_var<builder::eigen_Xmat_t> m_matrix;
 
   // for sparse unrolled
-  std::vector<dyn_var<Scalar>*> sparse_vars;
+  std::vector<SparseEntry<Scalar>> sparse_vars;
 
   // for sparse matrix
   dyn_var<Scalar[]> m_buffer;
@@ -75,16 +99,20 @@ struct Storage {
   Storage() : n_rows(0), n_cols(0), sparsity_type_id(DENSE), storage_order_id(COL_MAJ) {}
 
   Storage(size_t _n_rows, size_t _n_cols, Sparsity_type_id _sti=DENSE, Storage_order_id _soi=COL_MAJ) : 
-      n_rows(_n_rows), n_cols(_n_cols), sparsity_type_id(_sti), storage_order_id(_soi) {}
+      n_rows(_n_rows), n_cols(_n_cols), sparsity_type_id(_sti), storage_order_id(_soi) {
+    if (sparsity_type_id == SPARSE_UNROLLED) {
+      // set all matrix entries as non constant in the beginning
+      sparse_vars.resize(n_rows * n_cols);
+    }
+  }
 
-
-  std::string append_idx_error_msg(std::string error_msg, size_t i, size_t j) {
+  std::string append_idx_error_msg(std::string error_msg, size_t i, size_t j) const {
     auto err_stream = std::stringstream{};
     err_stream << error_msg << ": " << "(" << i << "," << j << ")";
     return err_stream.str();
   }
 
-  size_t get_flattened_index(size_t i, size_t j) {
+  size_t get_flattened_index(size_t i, size_t j) const {
     size_t flattened;
     if (storage_order_id == COL_MAJ)
       flattened = i * n_rows + j;
@@ -97,73 +125,130 @@ struct Storage {
     return flattened;
   }
 
-  size_t get_dense_to_sparse_idx(size_t i, size_t j) {
+  size_t get_dense_to_sparse_idx(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
     const char * error_msg = append_idx_error_msg("no sparse entry found for", i, j).c_str();
     assertm(is_nonzero(i, j), error_msg);
 
-    return dense_to_sparse_idx[flattened_idx];
+    return dense_to_sparse_idx.find(flattened_idx)->second;
   }
 
-  dyn_var<Scalar> operator()(size_t i, size_t j) {
+  dyn_var<Scalar> _get(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
     if (sparsity_type_id == DENSE) {
       //return m_matrix(i, j);
-      return m_buffer[flattened_idx];
+      return const_cast<dyn_var<Scalar[]>&>(m_buffer)[flattened_idx];
     }
     if (sparsity_type_id == SPARSE_UNROLLED) {
-      return *sparse_vars[get_dense_to_sparse_idx(i, j)];
+      const SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      if (e.is_constant) {
+        assertm(false, "can't retrieve constant entries using (), use get_constant_entry");
+      }
+      return e.dyn_entry;
     }
     if (sparsity_type_id == SPARSE_MATRIX) {
-      return m_buffer[get_dense_to_sparse_idx(i, j)];
+      if (is_zero(i, j)) {
+        assertm(false, "can't retrieve zero value");
+      }
+      return const_cast<dyn_var<Scalar[]>&>(m_buffer)[get_dense_to_sparse_idx(i, j)];
     }
   }
-  
-  int is_zero(size_t i, size_t j) {
-    // couldn't find entry that maps dense idx to sparse idx
-    return (dense_to_sparse_idx.find(get_flattened_index(i, j)) == dense_to_sparse_idx.end());
+
+  // meant to be used on LHS with const storage
+  dyn_var<Scalar> operator()(size_t i, size_t j) {
+    return _get(i, j);
+  }
+  // meant to be used on RHS
+  dyn_var<Scalar> operator()(size_t i, size_t j) const {
+    return _get(i, j);
   }
 
-  int is_nonzero(size_t i, size_t j) {
+  Scalar get_constant_entry(size_t i, size_t j) const {
+    size_t flattened_idx = get_flattened_index(i, j);
+    
+    if (sparsity_type_id == DENSE)
+      assertm(false, "no constant tracking for DENSE matrices");
+    else if (sparsity_type_id == SPARSE_UNROLLED) {
+      SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      if (!e.is_constant)
+        assertm(false, "entry is not constant");
+      return e.static_entry;
+    }
+    else if (sparsity_type_id == SPARSE_MATRIX) {
+      if (is_zero(i, j))
+        return 0;
+      else
+        assertm(false, "entry is not constant");
+    }
+  }
+
+  void set_constant_entry(size_t i, size_t j, Scalar val) {
+    size_t flattened_idx = get_flattened_index(i, j);
+    
+    if (sparsity_type_id == DENSE)
+      assertm(false, "no constant tracking for DENSE matrices");
+    else if (sparsity_type_id == SPARSE_UNROLLED) {
+      SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      e = val;
+    }
+    else if (sparsity_type_id == SPARSE_MATRIX) {
+      assertm(false, "todo unsupported");
+    }
+  }
+
+  
+  int is_zero(size_t i, size_t j) const {
+    size_t flattened_idx = get_flattened_index(i, j);
+
+    if (sparsity_type_id == SPARSE_UNROLLED) {
+      if (!sparse_vars[flattened_idx].is_constant)
+        return false;
+      else if (sparse_vars[flattened_idx].static_entry == 0)
+        return true;
+    }
+    else if (sparsity_type_id == SPARSE_MATRIX) {
+      // check if we couldn't find entry that maps dense idx to sparse idx
+      return (dense_to_sparse_idx.find(flattened_idx) == dense_to_sparse_idx.end());
+    }
+    else {
+      assertm(false, "zero are untracked for this sparsity type");
+    }
+  }
+
+  int is_nonzero(size_t i, size_t j) const {
     return !is_zero(i, j);
   }
-
-  void add_sparse_entry(dyn_var<Scalar>* e, size_t i, size_t j) {
-    const char * error_msg = append_idx_error_msg("sparse entry already exists", i, j).c_str();
-    assertm(is_zero(i, j), error_msg);
-
-    sparse_vars.push_back(e);
-    dense_to_sparse_idx[get_flattened_index(i, j)] = sparse_vars.size() - 1;
-  }
 };
 
 template<typename Scalar>
-struct Translation_expr {
-  virtual const builder::builder get_x();
-  virtual const builder::builder get_y();
-  virtual const builder::builder get_z();
+struct Translation_expr : Matrix_expr<Scalar> {
+  virtual const builder::builder get_x() const;
+  virtual const builder::builder get_y() const;
+  virtual const builder::builder get_z() const;
 
-  virtual const int has_x();
-  virtual const int has_y();
-  virtual const int has_z();
+  virtual int has_x() const;
+  virtual int has_y() const;
+  virtual int has_z() const;
 };
 
 template<typename Scalar>
-struct Rotation_expr {
-  virtual const builder::builder get_value_at(size_t r, size_t c);
-  virtual int is_nonzero(size_t r, size_t c);
+struct Rotation_expr : Matrix_expr<Scalar> {
+  virtual int is_nonzero(size_t i, size_t j) const;
+
+  virtual int has_x() const;
+  virtual int has_y() const;
+  virtual int has_z() const;
 };
 
 template<typename Scalar>
-struct Xform_expr {
-  virtual const builder::builder get_value();
-  virtual const Rotation_expr<Scalar> get_rotation_expr();
-  virtual const Translation_expr<Scalar> get_translation_expr();
+struct Xform_expr : Matrix_expr<Scalar> {
+  virtual const Rotation_expr<Scalar> get_rotation_expr() const;
+  virtual const Translation_expr<Scalar> get_translation_expr() const;
 
-  virtual const int has_rotation();
-  virtual const int has_translation();
+  virtual int has_rotation() const;
+  virtual int has_translation() const;
 };
 
 
@@ -209,12 +294,22 @@ public:
   }
   void set_z(Scalar val) {
     if (val == 0) {
-      has_y = false;
+      has_z = false;
       z = 0;
       return;
     }
     has_z = true;
     z = val;
+  }
+
+  dyn_var<Scalar> get_x() const {
+    return x;
+  }
+  dyn_var<Scalar> get_y() const {
+    return y;
+  }
+  dyn_var<Scalar> get_z() const {
+    return z;
   }
 
   void set_prismatic_axis(char axis) {
@@ -226,7 +321,7 @@ public:
       has_z = true;
   }
 
-  void jcalc(dyn_var<Scalar> &q_i) {
+  void jcalc(const dyn_var<Scalar> &q_i) {
     if (has_x)
       x = q_i;
     if (has_y)
@@ -235,18 +330,18 @@ public:
       z = q_i;
   }
 
-  void operator= (Translation_expr<Scalar> &rhs) {
+  void operator= (const Translation_expr<Scalar> &rhs) {
     if (rhs.has_x()) {
-      x = rhs.get_x();
       has_x = true;
+      x = rhs.get_x();
     }
     if (rhs.has_y()) {
-      y = rhs.get_y();
       has_y = true;
+      y = rhs.get_y();
     }
     if (rhs.has_z()) {
-      z = rhs.get_z();
       has_z = true;
+      z = rhs.get_z();
     }
   }
 };
@@ -255,60 +350,88 @@ template<typename Scalar>
 struct Rotation {
   Storage<Scalar> storage;
 
-  dyn_var<Scalar> s;
-  dyn_var<Scalar> c;
-  dyn_var<Scalar> minus_s;
-  dyn_var<Scalar> one;
+  dyn_var<Scalar>* s;
+  dyn_var<Scalar>* c;
+  dyn_var<Scalar>* minus_s;
 
+  static_var<int> is_joint_xform;
   static_var<int> has_x;
   static_var<int> has_y;
   static_var<int> has_z;
 
-  Rotation() : has_x(false), has_y(false), has_z(false) {}
+  Rotation() : storage(3, 3, Storage<Scalar>::SPARSE_UNROLLED), 
+      is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
+    // initializing to identity
+    storage(0, 0) = 1;
+    storage(1, 1) = 1;
+    storage(2, 2) = 1;
+  }
 
   void set_revolute_axis(char axis) {
-    one = 1;
+    is_joint_xform = true;
     if (axis == 'X') {
       has_x = true;
-      storage.add_sparse_entry(one.addr(), 0, 0);
-      storage.add_sparse_entry(c.addr(), 1, 1);
-      storage.add_sparse_entry(minus_s.addr(), 1, 2);
-      storage.add_sparse_entry(s.addr(), 2, 1);
-      storage.add_sparse_entry(c.addr(), 2, 2);
+      storage.set_constant_entry(0, 0, 1);
+      c = storage(1, 1).addr();
+      minus_s = storage(1, 2).addr();
+      s = storage(2, 1).addr();
+      c = storage(2, 2).addr();
     }
     else if (axis == 'Y') {
       has_y = true;
-      storage.add_sparse_entry(one.addr(), 1, 1);
-      storage.add_sparse_entry(c.addr(), 0, 0);
-      storage.add_sparse_entry(s.addr(), 0, 2);
-      storage.add_sparse_entry(minus_s.addr(), 2, 0);
-      storage.add_sparse_entry(c.addr(), 2, 2);
+      storage.set_constant_entry(1, 1, 1);
+      c = storage(0, 0).addr();
+      s = storage(0, 2).addr();
+      minus_s = storage(2, 0).addr();
+      c = storage(2, 2).addr();
     }
     else if (axis == 'Z') {
       has_z = true;
-      storage.add_sparse_entry(one.addr(), 2, 2);
-      storage.add_sparse_entry(c.addr(), 0, 0);
-      storage.add_sparse_entry(minus_s.addr(), 0, 1);
-      storage.add_sparse_entry(s.addr(), 1, 0);
-      storage.add_sparse_entry(c.addr(), 1, 1);
+      storage.set_constant_entry(2, 2, 1);
+      c = storage(0, 0).addr();
+      minus_s = storage(0, 1).addr();
+      s = storage(1, 0).addr();
+      c = storage(1, 1).addr();
     }
   }
 
-  void jcalc(dyn_var<Scalar> &q_i) {
-    s = backend::sin(q_i);
-    minus_s = -s;
-    c = backend::cos(q_i);
+  void jcalc(const dyn_var<Scalar> &q_i) {
+    *s = backend::sin(q_i);
+    *minus_s = -(*s);
+    *c = backend::cos(q_i);
   }
 
-  void operator= (Rotation_expr<Scalar> &rhs) {
+  void set_constant_entry(size_t i, size_t j, Scalar val) {
+    storage.set_constant_entry(i, j, val);
+  }
+
+  void operator= (const Rotation_expr<Scalar> &rhs) {
+    if (rhs.has_x()) {
+      has_x = true;
+    }
+    if (rhs.has_y()) {
+      has_y = true;
+    }
+    if (rhs.has_z()) {
+      has_z = true;
+    }
     for (static_var<size_t> i = 0; i < 3; i = i + 1) {
       for (static_var<size_t> j = 0; j < 3; j = j + 1) {
         if (rhs.is_nonzero(i, j)) {
-          // todo: propagate has_x,y,z here
           storage(i, j) = rhs.get_value_at(i, j);
+        }
+        else {
+          storage.set_constant_entry(i, j, 0);
         }
       }
     }
+  }
+
+  builder::builder operator()(size_t i, size_t j) {
+    return storage(i, j);
+  }
+  builder::builder operator()(size_t i, size_t j) const {
+    return storage(i, j);
   }
 };
 
@@ -322,10 +445,10 @@ struct Xform {
 
   Xform() : has_rotation(0), has_translation(0) {}
 
-    // if set_revolute/prismatic funcs are being called, it means this Xform is associated
-    // with a joint.
-    // A joint cannot be both prismatic and revolute.
-    // We enforce this condition using an assert.
+  // if set_revolute/prismatic funcs are being called, it means this Xform is associated
+  // with a joint.
+  // A joint cannot be both prismatic and revolute.
+  // We enforce this condition using an assert.
   void set_revolute_axis(char axis) {
     assertm(has_translation == false, "joint xform cannot be both revolute and prismatic");
     has_rotation = true;
@@ -337,7 +460,7 @@ struct Xform {
     trans.set_prismatic_axis(axis);
   }
 
-  void jcalc(dyn_var<Scalar> &q_i) {
+  void jcalc(const dyn_var<Scalar> &q_i) {
     if (has_rotation) {
       rot.jcalc(q_i);
     }
@@ -346,7 +469,7 @@ struct Xform {
     }
   }
 
-  void operator= (Xform_expr<Scalar> &rhs) {
+  void operator= (const Xform_expr<Scalar> &rhs) {
     if (rhs.has_rotation()) {
       has_rotation = true;
       rot = rhs.get_rotation_expr();
@@ -366,14 +489,24 @@ struct Translation_expr_leaf : public Translation_expr<Scalar> {
 
   Translation_expr_leaf(const struct Translation<Scalar>& trans) : m_trans(trans) {}
 
-  const builder::builder get_x() {
-    return m_trans.x;
+  const builder::builder get_x() const {
+    return m_trans.get_x();
   }
-  const builder::builder get_y() {
-    return m_trans.y;
+  const builder::builder get_y() const {
+    return m_trans.get_y();
   }
-  const builder::builder get_z() {
-    return m_trans.z;
+  const builder::builder get_z() const {
+    return m_trans.get_z();
+  }
+
+  int has_x() const {
+    return m_trans.has_x;
+  }
+  int has_y() const {
+    return m_trans.has_y;
+  }
+  int has_z() const {
+    return m_trans.has_z;
   }
 };
 
@@ -385,14 +518,24 @@ struct Translation_expr_add : public Translation_expr<Scalar> {
   Translation_expr_add(const struct Translation_expr<Scalar>& expr1, const struct Translation_expr<Scalar>& expr2) :
     expr1(expr1), expr2(expr2) {}
 
-  const builder::builder get_x() {
+  const builder::builder get_x() const {
     return expr1.get_x() + expr2.get_x();
   }
-  const builder::builder get_y() {
+  const builder::builder get_y() const {
     return expr1.get_y() + expr2.get_y();
   }
-  const builder::builder get_z() {
+  const builder::builder get_z() const {
     return expr1.get_z() + expr2.get_z();
+  }
+
+  int has_x() const {
+    return expr1.has_x() || expr1.has_x();
+  }
+  int has_y() const {
+    return expr1.has_y() || expr1.has_y();
+  }
+  int has_z() const {
+    return expr1.has_z() || expr1.has_z();
   }
 };
 
@@ -402,12 +545,22 @@ struct Rotation_expr_leaf : public Rotation_expr<Scalar> {
 
   Rotation_expr_leaf(const struct Rotation<Scalar>& rot) : m_rot(rot) {}
 
-  const builder::builder get_value_at(size_t i, size_t j) {
-    return m_rot.storage(i, j);
+  const builder::builder get_value_at(size_t i, size_t j) const {
+    return const_cast<Rotation<Scalar>&>(m_rot).storage(i, j);
   }
 
-  int is_nonzero(size_t i, size_t j) {
+  int is_nonzero(size_t i, size_t j) const {
     return m_rot.storage.is_nonzero(i, j);
+  }
+
+  int has_x() const {
+    return m_rot.has_x;
+  }
+  int has_y() const {
+    return m_rot.has_y;
+  }
+  int has_z() const {
+    return m_rot.has_z;
   }
 };
 
@@ -419,7 +572,7 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
   Rotation_expr_mul(const struct Rotation_expr<Scalar>& expr1, const struct Rotation_expr<Scalar>& expr2) :
     expr1(expr1), expr2(expr2) {}
 
-  const builder::builder get_value_at(size_t i, size_t j) {
+  const builder::builder get_value_at(size_t i, size_t j) const {
     dyn_var<Scalar> sum = 0;
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < 3; k = k + 1) {
@@ -428,11 +581,24 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
     return sum;
   }
 
-  int is_nonzero(size_t i, size_t j) {
+  int is_nonzero(size_t i, size_t j) const {
     for (static_var<size_t> k = 0; k < 3; k = k + 1) {
+      // when summing up products of inner_dim, if any one product is nonzero
+      // then (i, j) is guaranteed to be nonzero.
       if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
         return true;
     }
+    return false;
+  }
+
+  int has_x() const {
+    return expr1.has_x() || expr1.has_x();
+  }
+  int has_y() const {
+    return expr1.has_y() || expr1.has_y();
+  }
+  int has_z() const {
+    return expr1.has_z() || expr1.has_z();
   }
 };
 
@@ -442,11 +608,18 @@ struct Xform_expr_leaf : public Xform_expr<Scalar> {
 
   Xform_expr_leaf(const struct Xform<Scalar>& xform) : m_xform(xform) {}
 
-  const Rotation_expr<Scalar> get_rotation_expr() {
-    return m_xform.rot; // todo: cast to Rot_expr_leaf
+  const Rotation_expr<Scalar> get_rotation_expr() const {
+    return *new Rotation_expr_leaf<Scalar>(m_xform.rot);
   }
-  const Translation_expr<Scalar> get_translation_expr() {
-    return m_xform.trans; // todo: cast to Translation_expr_leaf
+  const Translation_expr<Scalar> get_translation_expr() const {
+    return *new Translation_expr_leaf<Scalar>(m_xform.trans);
+  }
+
+  int has_rotation() const {
+    return m_xform.has_rotation;
+  }
+  int has_translation() const {
+    return m_xform.has_translation;
   }
 };
 
@@ -458,11 +631,18 @@ struct Xform_expr_mul : public Xform_expr<Scalar> {
   Xform_expr_mul(const struct Xform_expr<Scalar>& expr1, const struct Xform_expr<Scalar>& expr2) :
     expr1(expr1), expr2(expr2) {}
 
-  const Rotation_expr<Scalar> get_rotation_expr() {
+  const Rotation_expr<Scalar> get_rotation_expr() const {
     return expr1.get_rotation_expr() * expr2.get_rotation_expr();
   }
-  const Translation_expr<Scalar> get_translation_expr() {
-    return expr1.get_translation_expr() * expr2.get_translation_expr();
+  const Translation_expr<Scalar> get_translation_expr() const {
+    return expr1.get_translation_expr() + expr2.get_translation_expr();
+  }
+
+  int has_rotation() const {
+    return expr1.has_rotation() || expr2.has_rotation();    
+  }
+  int has_translation() const {
+    return expr1.has_translation() || expr2.has_translation();    
   }
 };
 

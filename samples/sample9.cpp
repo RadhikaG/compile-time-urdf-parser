@@ -1,4 +1,4 @@
-#include "include/xform_impl.h"
+#include "spatial_algebra.h"
 
 #include "blocks/block_visitor.h"
 #include "blocks/c_code_generator.h"
@@ -22,7 +22,9 @@ using builder::static_var;
 
 using pinocchio::Model;
 
-std::vector<ctup::Xform<double>> X_T, X_J, X_0;
+using ctup::Xform;
+
+std::vector<Xform<double>> X_T, X_J, X_0;
 
 static int get_jtype(const Model &model, Model::JointIndex i) {
   std::string joint_name = model.joints[i].shortname();
@@ -52,34 +54,46 @@ static int get_joint_axis(const Model &model, Model::JointIndex i) {
 
 void set_X_T(const Model &model) {
   typedef typename Model::JointIndex JointIndex;
-  static_var<JointIndex> i = 1;
+  static_var<JointIndex> i;
 
-  static_var<int> r = 0;
-  static_var<int> c = 0;
+  for (i = 0; i < (JointIndex)model.njoints; i = i+1) {
+    Xform<double> *X_T_i_ptr = new Xform<double>;
+    X_T.push_back(*X_T_i_ptr);
+  }
 
-  for (; i < (JointIndex)model.njoints; i = i+1) {
-    Eigen::Matrix<double, 6, 6> tmp_cst_mat = model.jointPlacements[i];
+  static_var<int> r;
+  static_var<int> c;
 
-    // reverse engineer rot and trans from tmp_cst_mat
-
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
     builder::annotate(std::string(model.names[i]));
-    for (c = 0; c < 6; c = c + 1) {
-      for (r = 0; r < 6; r = r + 1) {
+    for (c = 0; c < 3; c = c + 1) {
+      for (r = 0; r < 3; r = r + 1) {
         //((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
-        X_T[i].coeffRef(c, r) = tmp_cst_mat.coeffRef(c, r);
+        X_T[i].rot.set_constant_entry(c, r, model.jointPlacements[i].rotation().coeffRef(c, r));
       }
     }
+
+    //for (r = 0; r < 3; r = r + 1) {
+    //  X_T_i.trans(r) = model.jointPlacements[i].translation().coeffRef(r);
+    //}
   }
 }
 
-void fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
+void fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   typedef typename Model::JointIndex JointIndex;
-  static_var<JointIndex> i = 1;
+  static_var<JointIndex> i;
+
+  for (i = 0; i < (JointIndex)model.njoints; i = i+1) {
+    Xform<double> *X_J_i_ptr = new Xform<double>;
+    Xform<double> *X_0_i_ptr = new Xform<double>;
+    X_J.push_back(*X_J_i_ptr);
+    X_0.push_back(*X_0_i_ptr);
+  }
 
   static_var<int> jtype;
   static_var<int> axis;
 
-  for (; i < (JointIndex)model.njoints; i = i+1) {
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
     jtype = get_jtype(model, i);
     axis = get_joint_axis(model, i);
 
@@ -87,12 +101,12 @@ void fk(const Model &model, dyn_var<eigen_vectorXd_t &> q) {
       X_J[i].set_revolute_axis(axis);
     }
     else if (jtype == 'P') {
-      X_J[i].set_prismatic_axis(axis);
+      X_J[i].set_revolute_axis(axis);
     }
   }
 
   static_var<JointIndex> parent;
-  Xform<Scalar> X_pi;
+  Xform<double> X_pi;
 
   for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
     X_J[i].jcalc(q[i]);
@@ -124,19 +138,13 @@ int main(int argc, char* argv[]) {
   of << "#include \"Eigen/Dense\"\n\n";
   of << "namespace ctup_gen {\n\n";
 
-  resize_arr(X_T, model.njoints);
-  auto X_T_decl = std::make_shared<block::decl_stmt>();
-  X_T_decl->decl_var = X_T.block_var;
-  X_T_decl->accept(&codegen);
-  of << "\n\n";
-
   builder::builder_context context;
   auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
   block::c_code_generator::generate_code(ast, of, 0);
 
-  ast = context.extract_function_ast(fk, "fk", model);
-  ast->dump(std::cout, 0);
-  block::c_code_generator::generate_code(ast, of, 0);
+  //ast = context.extract_function_ast(fk, "fk", model);
+  //ast->dump(std::cout, 0);
+  //block::c_code_generator::generate_code(ast, of, 0);
 
   of << "}\n";
 }

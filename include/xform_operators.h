@@ -70,7 +70,7 @@ template<typename E1, typename E2>
 // sets return type to Translation_expr<Scalar>...
 typename std::enable_if<is_acceptable_rhs_translation<E2>::value, 
          const Translation_expr<typename is_acceptable_rhs_translation<E1>::scalar_type>&>::type
-// ...for translation * translation
+// ...for translation + translation
 operator + (const E1& v1, const E2& v2) {
   return *new Translation_expr_add<typename is_acceptable_rhs_translation<E1>::scalar_type>(
           is_acceptable_rhs_translation<E1>::cast(v1),
@@ -106,7 +106,7 @@ template<typename E1, typename E2>
 typename std::enable_if<is_acceptable_rhs_rotation<E2>::value, 
          const Rotation_expr<typename is_acceptable_rhs_rotation<E1>::scalar_type>&>::type
 // ...for rotation * rotation
-operator + (const E1& v1, const E2& v2) {
+operator * (const E1& v1, const E2& v2) {
   return *new Rotation_expr_mul<typename is_acceptable_rhs_rotation<E1>::scalar_type>(
           is_acceptable_rhs_rotation<E1>::cast(v1),
           is_acceptable_rhs_rotation<E1>::cast(v2));
