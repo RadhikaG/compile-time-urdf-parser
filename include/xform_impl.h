@@ -16,7 +16,7 @@ using builder::static_var;
 
 namespace ctup {
 
-// todo: conditionally generate backend statements using hw features
+// todo: conditionally generate backend statements using hw features later
 struct HwFeatures {
   bool is_vectorized;
   bool is_threaded;
@@ -134,6 +134,12 @@ struct Storage {
     return dense_to_sparse_idx.find(flattened_idx)->second;
   }
 
+  void set_entry_to_dyn(size_t i, size_t j) {
+    size_t flattened_idx = get_flattened_index(i, j);
+    SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+    e.is_constant = false;
+  }
+
   dyn_var<Scalar> _get(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
@@ -144,24 +150,26 @@ struct Storage {
     if (sparsity_type_id == SPARSE_UNROLLED) {
       const SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
       if (e.is_constant) {
-        assertm(false, "can't retrieve constant entries using (), use get_constant_entry");
+        const char * error_msg = append_idx_error_msg("can't retrieve constant entries using (i, j), use get_constant_entry", i, j).c_str();
+        assertm(false, error_msg);
       }
       return e.dyn_entry;
     }
     if (sparsity_type_id == SPARSE_MATRIX) {
       if (is_zero(i, j)) {
-        assertm(false, "can't retrieve zero value");
+        const char * error_msg = append_idx_error_msg("can't retrieve constant (zero) value using (i, j), use get_constant_entry", i, j).c_str();
+        assertm(false, error_msg);
       }
       return const_cast<dyn_var<Scalar[]>&>(m_buffer)[get_dense_to_sparse_idx(i, j)];
     }
   }
 
-  // meant to be used on LHS with const storage
-  dyn_var<Scalar> operator()(size_t i, size_t j) {
+  // meant to be used on RHS of an assignment statement
+  dyn_var<Scalar> get_dyn_entry(size_t i, size_t j) {
     return _get(i, j);
   }
-  // meant to be used on RHS
-  dyn_var<Scalar> operator()(size_t i, size_t j) const {
+  // meant to be used on LHS of an assignment statement, with const storage
+  const dyn_var<Scalar> get_dyn_entry(size_t i, size_t j) const {
     return _get(i, j);
   }
 
@@ -171,7 +179,7 @@ struct Storage {
     if (sparsity_type_id == DENSE)
       assertm(false, "no constant tracking for DENSE matrices");
     else if (sparsity_type_id == SPARSE_UNROLLED) {
-      SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      const SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
       if (!e.is_constant)
         assertm(false, "entry is not constant");
       return e.static_entry;
@@ -184,7 +192,7 @@ struct Storage {
     }
   }
 
-  void set_constant_entry(size_t i, size_t j, Scalar val) {
+  void set_entry_to_constant(size_t i, size_t j, Scalar val) {
     size_t flattened_idx = get_flattened_index(i, j);
     
     if (sparsity_type_id == DENSE)
@@ -192,12 +200,22 @@ struct Storage {
     else if (sparsity_type_id == SPARSE_UNROLLED) {
       SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
       e = val;
+      e.is_constant = true;
     }
     else if (sparsity_type_id == SPARSE_MATRIX) {
       assertm(false, "todo unsupported");
     }
   }
 
+  int is_constant(size_t i, size_t j) const {
+    size_t flattened_idx = get_flattened_index(i, j);
+    if (sparsity_type_id == SPARSE_UNROLLED) {
+      if (sparse_vars[flattened_idx].is_constant)
+        return true;
+      else
+        return false;
+    }
+  }
   
   int is_zero(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
@@ -219,6 +237,17 @@ struct Storage {
 
   int is_nonzero(size_t i, size_t j) const {
     return !is_zero(i, j);
+  }
+
+  void set_identity() {
+    for (static_var<int> i = 0; i < n_cols; i = i+1) {
+      for (static_var<int> j = 0; j < n_rows; j = j+1) {
+        set_entry_to_constant(i, j, 0);
+      }
+    }
+    set_entry_to_constant(0, 0, 1);
+    set_entry_to_constant(1, 1, 1);
+    set_entry_to_constant(2, 2, 1);
   }
 };
 
@@ -305,13 +334,14 @@ public:
     z = val;
   }
 
-  dyn_var<Scalar> get_x() const {
+  // the variable returned here is marked const so no one can modify the dyn_var directly
+  const dyn_var<Scalar> get_x() const {
     return x;
   }
-  dyn_var<Scalar> get_y() const {
+  const dyn_var<Scalar> get_y() const {
     return y;
   }
-  dyn_var<Scalar> get_z() const {
+  const dyn_var<Scalar> get_z() const {
     return z;
   }
 
@@ -364,37 +394,50 @@ struct Rotation {
 
   Rotation() : storage(3, 3, Storage<Scalar>::SPARSE_UNROLLED), 
       is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
-    // initializing to identity
-    storage.set_constant_entry(0, 0, 1);
-    storage.set_constant_entry(1, 1, 1);
-    storage.set_constant_entry(2, 2, 1);
+    storage.set_identity();
   }
 
   void set_revolute_axis(char axis) {
     is_joint_xform = true;
+
     if (axis == 'X') {
       has_x = true;
-      storage.set_constant_entry(0, 0, 1);
-      c = storage(1, 1).addr();
-      minus_s = storage(1, 2).addr();
-      s = storage(2, 1).addr();
-      c = storage(2, 2).addr();
+      storage.set_entry_to_constant(0, 0, 1);
+      storage.set_entry_to_dyn(1, 1);
+      storage.set_entry_to_dyn(1, 2);
+      storage.set_entry_to_dyn(2, 1);
+      storage.set_entry_to_dyn(2, 2);
+
+      c = storage.get_dyn_entry(1, 1).addr();
+      minus_s = storage.get_dyn_entry(1, 2).addr();
+      s = storage.get_dyn_entry(2, 1).addr();
+      c = storage.get_dyn_entry(2, 2).addr();
     }
     else if (axis == 'Y') {
       has_y = true;
-      storage.set_constant_entry(1, 1, 1);
-      c = storage(0, 0).addr();
-      s = storage(0, 2).addr();
-      minus_s = storage(2, 0).addr();
-      c = storage(2, 2).addr();
+      storage.set_entry_to_constant(1, 1, 1);
+      storage.set_entry_to_dyn(0, 0);
+      storage.set_entry_to_dyn(0, 2);
+      storage.set_entry_to_dyn(2, 0);
+      storage.set_entry_to_dyn(2, 2);
+
+      c = storage.get_dyn_entry(0, 0).addr();
+      s = storage.get_dyn_entry(0, 2).addr();
+      minus_s = storage.get_dyn_entry(2, 0).addr();
+      c = storage.get_dyn_entry(2, 2).addr();
     }
     else if (axis == 'Z') {
       has_z = true;
-      storage.set_constant_entry(2, 2, 1);
-      c = storage(0, 0).addr();
-      minus_s = storage(0, 1).addr();
-      s = storage(1, 0).addr();
-      c = storage(1, 1).addr();
+      storage.set_entry_to_constant(2, 2, 1);
+      storage.set_entry_to_dyn(0, 0);
+      storage.set_entry_to_dyn(0, 1);
+      storage.set_entry_to_dyn(1, 0);
+      storage.set_entry_to_dyn(1, 1);
+
+      c = storage.get_dyn_entry(0, 0).addr();
+      minus_s = storage.get_dyn_entry(0, 1).addr();
+      s = storage.get_dyn_entry(1, 0).addr();
+      c = storage.get_dyn_entry(1, 1).addr();
     }
   }
 
@@ -404,8 +447,8 @@ struct Rotation {
     *c = backend::cos(q_i);
   }
 
-  void set_constant_entry(size_t i, size_t j, Scalar val) {
-    storage.set_constant_entry(i, j, val);
+  void set_entry_to_constant(size_t i, size_t j, Scalar val) {
+    storage.set_entry_to_constant(i, j, val);
   }
 
   void operator= (const Rotation_expr<Scalar> &rhs) {
@@ -421,20 +464,13 @@ struct Rotation {
     for (static_var<size_t> i = 0; i < 3; i = i + 1) {
       for (static_var<size_t> j = 0; j < 3; j = j + 1) {
         if (rhs.is_nonzero(i, j)) {
-          storage(i, j) = rhs.get_value_at(i, j);
+          storage.get_dyn_entry(i, j) = rhs.get_value_at(i, j);
         }
         else {
-          storage.set_constant_entry(i, j, 0);
+          storage.set_entry_to_constant(i, j, 0);
         }
       }
     }
-  }
-
-  builder::builder operator()(size_t i, size_t j) {
-    return storage(i, j);
-  }
-  builder::builder operator()(size_t i, size_t j) const {
-    return storage(i, j);
   }
 };
 
@@ -559,7 +595,10 @@ struct Rotation_expr_leaf : public Rotation_expr<Scalar> {
   Rotation_expr_leaf(const struct Rotation<Scalar>& rot) : m_rot(rot) {}
 
   const builder::builder get_value_at(size_t i, size_t j) const {
-    return const_cast<Rotation<Scalar>&>(m_rot).storage(i, j);
+    if (!m_rot.storage.is_constant(i, j))
+      return m_rot.storage.get_constant_entry(i, j);
+    else
+      return m_rot.storage.get_dyn_entry(i, j);
   }
 
   int is_nonzero(size_t i, size_t j) const {
