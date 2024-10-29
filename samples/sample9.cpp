@@ -56,22 +56,18 @@ void set_X_T(const Model &model) {
   typedef typename Model::JointIndex JointIndex;
   static_var<JointIndex> i;
 
-  for (i = 0; i < (JointIndex)model.njoints; i = i+1) {
-    Xform<double> *X_T_i_ptr = new Xform<double>;
-    X_T.push_back(*X_T_i_ptr);
-  }
-
   static_var<int> r;
   static_var<int> c;
 
   for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-    builder::annotate(std::string(model.names[i]));
     for (c = 0; c < 3; c = c + 1) {
       for (r = 0; r < 3; r = r + 1) {
         //((dyn_var<eigen_Xmat_t>)(builder::cast)X_T[i]).coeffRef(r, c) = blah.coeffRef(r, c);
         X_T[i].rot.set_constant_entry(c, r, model.jointPlacements[i].rotation().coeffRef(c, r));
       }
     }
+
+    std::cout << "bleh\n";
 
     //for (r = 0; r < 3; r = r + 1) {
     //  X_T_i.trans(r) = model.jointPlacements[i].translation().coeffRef(r);
@@ -84,11 +80,12 @@ void fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   static_var<JointIndex> i;
 
   for (i = 0; i < (JointIndex)model.njoints; i = i+1) {
-    Xform<double> *X_J_i_ptr = new Xform<double>;
-    Xform<double> *X_0_i_ptr = new Xform<double>;
-    X_J.push_back(*X_J_i_ptr);
-    X_0.push_back(*X_0_i_ptr);
+    X_T.push_back(*new Xform<double>);
+    X_J.push_back(*new Xform<double>);
+    X_0.push_back(*new Xform<double>);
   }
+
+  set_X_T(model);
 
   static_var<int> jtype;
   static_var<int> axis;
@@ -139,12 +136,13 @@ int main(int argc, char* argv[]) {
   of << "namespace ctup_gen {\n\n";
 
   builder::builder_context context;
-  auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
-  block::c_code_generator::generate_code(ast, of, 0);
 
-  //ast = context.extract_function_ast(fk, "fk", model);
-  //ast->dump(std::cout, 0);
+  //auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
   //block::c_code_generator::generate_code(ast, of, 0);
+
+  auto ast = context.extract_function_ast(fk, "fk", model);
+  ast->dump(std::cout, 0);
+  block::c_code_generator::generate_code(ast, of, 0);
 
   of << "}\n";
 }

@@ -31,7 +31,7 @@ struct HwFeatures {
 template<typename Scalar>
 struct Matrix_expr {
   //virtual const builder::builder get_value() const;
-  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
 };
 
 template<typename Scalar>
@@ -224,34 +224,34 @@ struct Storage {
 
 template<typename Scalar>
 struct Translation_expr : Matrix_expr<Scalar> {
-  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
-  virtual const builder::builder get_x() const = 0;
-  virtual const builder::builder get_y() const = 0;
-  virtual const builder::builder get_z() const = 0;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
+  virtual const builder::builder get_x() const { return dyn_var<int>(); }
+  virtual const builder::builder get_y() const { return dyn_var<int>(); }
+  virtual const builder::builder get_z() const { return dyn_var<int>(); }
 
-  virtual int has_x() const = 0;
-  virtual int has_y() const = 0;
-  virtual int has_z() const = 0;
+  virtual int has_x() const { return 0; }
+  virtual int has_y() const { return 0; }
+  virtual int has_z() const { return 0; }
 };
 
 template<typename Scalar>
 struct Rotation_expr : Matrix_expr<Scalar> {
-  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
-  virtual int is_nonzero(size_t i, size_t j) const = 0;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
+  virtual int is_nonzero(size_t i, size_t j) const { return 0; }
 
-  virtual int has_x() const = 0;
-  virtual int has_y() const = 0;
-  virtual int has_z() const = 0;
+  virtual int has_x() const { return 0; }
+  virtual int has_y() const { return 0; }
+  virtual int has_z() const { return 0; }
 };
 
 template<typename Scalar>
 struct Xform_expr : Matrix_expr<Scalar> {
-  virtual const builder::builder get_value_at(size_t i, size_t j) const = 0;
-  virtual const Rotation_expr<Scalar> get_rotation_expr() const = 0;
-  virtual const Translation_expr<Scalar> get_translation_expr() const = 0;
+  virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
+  virtual const Rotation_expr<Scalar> get_rotation_expr() const { return *new Rotation_expr<Scalar>(); }
+  virtual const Translation_expr<Scalar> get_translation_expr() const { return *new Translation_expr<Scalar>(); }
 
-  virtual int has_rotation() const = 0;
-  virtual int has_translation() const = 0;
+  virtual int has_rotation() const { return 0; }
+  virtual int has_translation() const { return 0; }
 };
 
 
@@ -627,10 +627,10 @@ struct Xform_expr_leaf : public Xform_expr<Scalar> {
   }
 
   const Rotation_expr<Scalar> get_rotation_expr() const {
-    return new Rotation_expr_leaf<Scalar>(m_xform.rot);
+    return *new Rotation_expr_leaf<Scalar>(m_xform.rot);
   }
   const Translation_expr<Scalar> get_translation_expr() const {
-    return new Translation_expr_leaf<Scalar>(m_xform.trans);
+    return *new Translation_expr_leaf<Scalar>(m_xform.trans);
   }
 
   int has_rotation() const {
@@ -651,7 +651,7 @@ struct Xform_expr_mul : public Xform_expr<Scalar> {
 
   const builder::builder get_value_at(size_t i, size_t j) const {
     assertm(false, "todo");
-    return expr1.get_translation_expr()->get_x();
+    return expr1.get_translation_expr().get_x();
   }
 
   const Rotation_expr<Scalar> get_rotation_expr() const {
