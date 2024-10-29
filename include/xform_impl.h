@@ -34,25 +34,6 @@ struct Matrix_expr {
   virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
 };
 
-template<typename Scalar>
-struct SparseEntry {
-  dyn_var<Scalar> dyn_entry;
-  static_var<Scalar> static_entry;
-  static_var<int> is_constant;
-
-  SparseEntry() : static_entry(0), is_constant(true) {}
-
-  void operator=(Scalar val) {
-    is_constant = true;
-    static_entry = val;
-  }
-
-  void operator=(const dyn_var<Scalar> &val) {
-    is_constant = false;
-    dyn_entry = val;
-  }
-};
-
 // Design intentions: 
 // * Abstract away matrix representation from matrix types (Rotation, Translation,
 // Xform, etc.)
@@ -67,6 +48,27 @@ struct SparseEntry {
 // todo: Storage class needs much more work.
 template<typename Scalar>
 struct Storage {
+private:
+  // SparseEntry should be inaccessible from outside Storage
+  struct SparseEntry {
+    dyn_var<Scalar> dyn_entry;
+    static_var<Scalar> static_entry;
+    static_var<int> is_constant;
+  
+    SparseEntry() : static_entry(0), is_constant(true) {}
+  
+    void operator=(Scalar val) {
+      is_constant = true;
+      static_entry = val;
+    }
+  
+    void operator=(const dyn_var<Scalar> &val) {
+      is_constant = false;
+      dyn_entry = val;
+    }
+  };
+
+public:
   static_var<size_t> n_rows;
   static_var<size_t> n_cols;
 
@@ -74,7 +76,7 @@ struct Storage {
   //dyn_var<builder::eigen_Xmat_t> m_matrix;
 
   // for sparse unrolled
-  std::vector<SparseEntry<Scalar>> sparse_vars;
+  std::vector<SparseEntry> sparse_vars;
 
   // for sparse matrix
   dyn_var<Scalar[]> m_buffer;
@@ -136,7 +138,7 @@ struct Storage {
 
   void set_entry_to_dyn(size_t i, size_t j) {
     size_t flattened_idx = get_flattened_index(i, j);
-    SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+    SparseEntry &e = sparse_vars[flattened_idx];
     e.is_constant = false;
   }
 
@@ -148,7 +150,7 @@ struct Storage {
       return const_cast<dyn_var<Scalar[]>&>(m_buffer)[flattened_idx];
     }
     if (sparsity_type_id == SPARSE_UNROLLED) {
-      const SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      const SparseEntry &e = sparse_vars[flattened_idx];
       if (e.is_constant) {
         const char * error_msg = append_idx_error_msg("can't retrieve constant entries using (i, j), use get_constant_entry", i, j).c_str();
         assertm(false, error_msg);
@@ -179,7 +181,7 @@ struct Storage {
     if (sparsity_type_id == DENSE)
       assertm(false, "no constant tracking for DENSE matrices");
     else if (sparsity_type_id == SPARSE_UNROLLED) {
-      const SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      const SparseEntry &e = sparse_vars[flattened_idx];
       if (!e.is_constant)
         assertm(false, "entry is not constant");
       return e.static_entry;
@@ -198,7 +200,7 @@ struct Storage {
     if (sparsity_type_id == DENSE)
       assertm(false, "no constant tracking for DENSE matrices");
     else if (sparsity_type_id == SPARSE_UNROLLED) {
-      SparseEntry<Scalar> &e = sparse_vars[flattened_idx];
+      SparseEntry &e = sparse_vars[flattened_idx];
       e = val;
       e.is_constant = true;
     }
