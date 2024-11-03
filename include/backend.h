@@ -25,20 +25,20 @@ using eigen_Xmat_t = name<eigen_Xmat_t_name>;
 using eigen_vectorXd_t = name<eigen_vec_t_name>;
 
 template <>
-class dyn_var<eigen_vectorXd_t&> : public dyn_var_impl<eigen_vectorXd_t&> {
+class dyn_var<eigen_vectorXd_t> : public dyn_var_impl<eigen_vectorXd_t> {
 public:
-  typedef dyn_var_impl<eigen_vectorXd_t&> super;
+  typedef dyn_var_impl<eigen_vectorXd_t> super;
   using super::super;
   using super::operator=;
-  builder operator=(const dyn_var<eigen_vectorXd_t&> &t) {
+  builder operator=(const dyn_var<eigen_vectorXd_t> &t) {
     return (*this) = (builder)t;
   }
   dyn_var(const dyn_var &t) : dyn_var_impl((builder)t) {}
-  dyn_var() : dyn_var_impl<eigen_vectorXd_t&>() {} 
+  dyn_var() : dyn_var_impl<eigen_vectorXd_t>() {} 
 
   // so indexing into vector types returns a dyn_var<double>
   dyn_var<double> operator[](const builder &bt) {
-    return (dyn_var<double>)(cast)this->dyn_var_impl<eigen_vectorXd_t&>::operator[](bt);
+    return (dyn_var<double>)(cast)this->dyn_var_impl<eigen_vectorXd_t>::operator[](bt);
   }
 };
 

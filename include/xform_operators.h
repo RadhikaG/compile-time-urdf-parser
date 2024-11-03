@@ -39,7 +39,7 @@ typename std::enable_if<is_acceptable_rhs_xform<E2>::value,
 operator * (const E1& v1, const E2& v2) {
   return *new Xform_expr_mul<typename is_acceptable_rhs_xform<E1>::scalar_type>(
           is_acceptable_rhs_xform<E1>::cast(v1),
-          is_acceptable_rhs_xform<E1>::cast(v2));
+          is_acceptable_rhs_xform<E2>::cast(v2));
 }
 
 /*** Translation expressions **/
@@ -74,7 +74,7 @@ typename std::enable_if<is_acceptable_rhs_translation<E2>::value,
 operator + (const E1& v1, const E2& v2) {
   return *new Translation_expr_add<typename is_acceptable_rhs_translation<E1>::scalar_type>(
           is_acceptable_rhs_translation<E1>::cast(v1),
-          is_acceptable_rhs_translation<E1>::cast(v2));
+          is_acceptable_rhs_translation<E2>::cast(v2));
 }
 
 /*** Rotation expressions **/
@@ -109,7 +109,7 @@ typename std::enable_if<is_acceptable_rhs_rotation<E2>::value,
 operator * (const E1& v1, const E2& v2) {
   return *new Rotation_expr_mul<typename is_acceptable_rhs_rotation<E1>::scalar_type>(
           is_acceptable_rhs_rotation<E1>::cast(v1),
-          is_acceptable_rhs_rotation<E1>::cast(v2));
+          is_acceptable_rhs_rotation<E2>::cast(v2));
 }
 
 }
