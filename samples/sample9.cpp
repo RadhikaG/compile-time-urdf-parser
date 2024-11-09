@@ -1,4 +1,6 @@
+#include "backend.h"
 #include "spatial_algebra.h"
+#include "utils.h"
 
 #include "blocks/block_visitor.h"
 #include "blocks/c_code_generator.h"
@@ -126,7 +128,7 @@ static int get_joint_axis(const Model &model, Model::JointIndex i) {
 //  }
 //}
 
-void fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
+dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   Xform<double> X1, X2, X3;
 
   static_var<int> r;
@@ -153,8 +155,15 @@ void fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   X1.trans.set_z(pin_trans.coeffRef(2));
 
   X2.set_revolute_axis('Z');
+  X2.jcalc(q(1));
 
   X3 = X1 * X2;
+
+  dyn_var<builder::eigen_Xmat_t> final_ans;
+
+  toEigen(final_ans, X3);
+
+  return final_ans;
 }
 
 int main(int argc, char* argv[]) {

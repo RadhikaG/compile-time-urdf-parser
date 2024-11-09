@@ -1,3 +1,5 @@
+#ifndef BACKEND_H
+#define BACKEND_H
 #include "blocks/block_visitor.h"
 #include "blocks/c_code_generator.h"
 #include "builder/builder_base.h"
@@ -78,3 +80,5 @@ public:
   }
 };
 }
+
+#endif
