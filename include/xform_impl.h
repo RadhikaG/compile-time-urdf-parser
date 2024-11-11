@@ -132,8 +132,10 @@ public:
   size_t get_flattened_index(size_t i, size_t j) const {
     size_t flattened;
     if (storage_order_id == COL_MAJ)
+      // i is col-idx, j is row-idx
       flattened = i * n_rows + j;
     else if (storage_order_id == ROW_MAJ)
+      // i is row-idx, j is col-idx
       flattened = i * n_cols + j;
 
     const char * error_msg = append_idx_error_msg("index out of bounds", i, j).c_str();
@@ -287,20 +289,35 @@ struct Translation_expr : public Matrix_expr<Scalar> {
     // [y] cross = [ z  0  -x]
     // [z]         [-y  x   0]
     // zero along diagonal
+    //if (i == j)
+    //  return 0;
+    //if (i == 1 && j == 0)
+    //  return -get_z();
+    //if (i == 0 && j == 1)
+    //  return get_z();
+    //if (i == 2 && j == 0)
+    //  return get_y();
+    //if (i == 0 && j == 2)
+    //  return -get_y();
+    //if (i == 2 && j == 1)
+    //  return -get_x();
+    //if (i == 1 && j == 2)
+    //  return get_x();
+
     if (i == j)
       return 0;
     if (i == 1 && j == 0)
-      return -get_z();
-    if (i == 0 && j == 1)
       return get_z();
+    if (i == 0 && j == 1)
+      return -get_z();
     if (i == 2 && j == 0)
-      return get_y();
-    if (i == 0 && j == 2)
       return -get_y();
+    if (i == 0 && j == 2)
+      return get_y();
     if (i == 2 && j == 1)
-      return -get_x();
-    if (i == 1 && j == 2)
       return get_x();
+    if (i == 1 && j == 2)
+      return -get_x();
   }
 
   virtual const builder::builder get_x() const { return dyn_var<int>(); }
@@ -338,6 +355,7 @@ struct Xform_expr : public Matrix_expr<Scalar> {
       return get_rotation_expr().get_value_at(i-3, j-3);
     }
     else if (i < 3 && j >= 3) {
+    //else if (i >= 3 && j < 3) {
       // -Erx
       // we need to compute matmul entry for -Erx
       size_t c = i;
@@ -346,7 +364,8 @@ struct Xform_expr : public Matrix_expr<Scalar> {
       dyn_var<Scalar> entry = 0;
       static_var<int> k;
       for (k = 0; k < 3; k = k+1) {
-        entry += -get_rotation_expr().get_value_at(k, r) * get_translation_expr().get_value_at(c, k);
+        //entry += -get_rotation_expr().get_value_at(k, r) * get_translation_expr().get_value_at(c, k);
+        entry += -(get_rotation_expr().get_value_at(k, r) * get_translation_expr().get_value_at(k, c));
       }
       return entry;
     }
@@ -361,6 +380,10 @@ struct Xform_expr : public Matrix_expr<Scalar> {
   virtual int has_rotation() const { return 0; }
   virtual int has_translation() const { return 0; }
 };
+
+// fwd decl
+template<typename Scalar>
+struct Xform_expr_leaf;
 
 
 template<typename Scalar>
@@ -463,17 +486,14 @@ public:
   void operator= (const Translation_expr<Scalar> &rhs) {
     if (rhs.has_x()) {
       has_x = true;
-      builder::annotate("trans add");
       x = rhs.get_x();
     }
     if (rhs.has_y()) {
       has_y = true;
-      builder::annotate("trans add");
       y = rhs.get_y();
     }
     if (rhs.has_z()) {
       has_z = true;
-      builder::annotate("trans add");
       z = rhs.get_z();
     }
   }
@@ -572,7 +592,6 @@ struct Rotation {
           // is a non-zero constant.
           // We don't propagate any non-zero constants.
           // Change later.
-          //storage.get_dyn_entry(i, j) = rhs.get_value_at(i, j);
           storage.set_entry_to_dyn(i, j, rhs.get_value_at(i, j));
         }
         else {
@@ -628,6 +647,10 @@ struct Xform {
       has_translation = true;
       trans = rhs.get_translation_expr();
     }
+  }
+
+  void operator= (const Xform<Scalar> &xform) {
+    *this = Xform_expr_leaf<Scalar>(xform);
   }
 };
 
@@ -733,8 +756,9 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
       // for row-major indexing we'd do:
       // expr1.get_value_at(i, k) * expr2.get_value_at(k, j) 
       // where i is row-idx, j is col-idx
-      // since col-major default, we do:
-      sum += expr1.get_value_at(k, j) * expr2.get_value_at(i, k); 
+      // since we are col-major default, we do:
+      //sum += expr1.get_value_at(k, j) * expr2.get_value_at(i, k); 
+      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j); 
       // where i is col-idx, j is row-idx
     }
     return sum;
@@ -744,7 +768,8 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
     for (static_var<size_t> k = 0; k < 3; k = k + 1) {
       // when summing up products of inner_dim, if any one product is nonzero
       // then (i, j) is guaranteed to be nonzero.
-      if (expr1.is_nonzero(k, j) && expr2.is_nonzero(i, k))
+      //if (expr1.is_nonzero(k, j) && expr2.is_nonzero(i, k))
+      if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
         return true;
     }
     return false;

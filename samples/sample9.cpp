@@ -18,6 +18,7 @@
 #include "pinocchio/parsers/urdf.hpp"
 #include "assert.h"
 #include <memory>
+#include <string>
 
 using builder::dyn_var;
 using builder::static_var;
@@ -52,119 +53,133 @@ static int get_joint_axis(const Model &model, Model::JointIndex i) {
   }
 }
 
-//std::vector<Xform<double>> X_T, X_J, X_0;
-//
-//void set_X_T(const Model &model) {
-//  typedef typename Model::JointIndex JointIndex;
-//  static_var<JointIndex> i;
-//
-//  static_var<int> r;
-//  static_var<int> c;
-//
-//  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-//    Eigen::Matrix3d pin_rot = model.jointPlacements[i].rotation();
-//    Eigen::Vector3d pin_trans = model.jointPlacements[i].translation();
-//
-//    for (c = 0; c < 3; c = c + 1) {
-//      for (r = 0; r < 3; r = r + 1) {
-//        double entry = pin_rot.coeffRef(c, r);
-//        if (std::abs(entry) < 1e-5)
-//          X_T[i].rot.set_entry_to_constant(c, r, 0);
-//        else
-//          X_T[i].rot.set_entry_to_constant(c, r, entry);
-//      }
-//    }
-//
-//    X_T[i].trans.set_x(pin_trans.coeffRef(0));
-//    X_T[i].trans.set_y(pin_trans.coeffRef(1));
-//    X_T[i].trans.set_z(pin_trans.coeffRef(2));
-//    //for (r = 0; r < 3; r = r + 1) {
-//    //  X_T_i.trans(r) = model.jointPlacements[i].translation().coeffRef(r);
-//    //}
-//  }
-//}
-//
-//void fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
-//  typedef typename Model::JointIndex JointIndex;
-//  static_var<JointIndex> i;
-//
-//  for (i = 0; i < (JointIndex)model.njoints; i = i+1) {
-//    X_T.push_back(Xform<double>());
-//    X_J.push_back(Xform<double>());
-//    X_0.push_back(Xform<double>());
-//  }
-//
-//  set_X_T(model);
-//
-//  static_var<int> jtype;
-//  static_var<int> axis;
-//
-//  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-//    jtype = get_jtype(model, i);
-//    axis = get_joint_axis(model, i);
-//
-//    if (jtype == 'R') {
-//      X_J[i].set_revolute_axis(axis);
-//    }
-//    if (jtype == 'P') {
-//      X_J[i].set_prismatic_axis(axis);
-//    }
-//  }
-//
-//  static_var<JointIndex> parent;
-//  Xform<double> X_pi;
-//
-//  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-//    X_J[i].jcalc(q[i]);
-//
-//    X_pi = X_T[i] * X_J[i];
-//    parent = model.parents[i];
-//    if (parent > 0) {
-//      X_0[i] = X_0[parent] * X_pi;
-//    }
-//    else {
-//      X_0[i] = X_pi;
-//    }
-//  }
-//}
-
-dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
-  Xform<double> X1, X2, X3;
+void set_X_T(Xform<double> X_T[], const Model &model) {
+  typedef typename Model::JointIndex JointIndex;
+  static_var<JointIndex> i;
 
   static_var<int> r;
   static_var<int> c;
 
-  Eigen::Matrix3d pin_rot = model.jointPlacements[1].rotation();
-  Eigen::Vector3d pin_trans = model.jointPlacements[1].translation();
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
+    Eigen::Matrix3d pin_rot = model.jointPlacements[i].rotation();
+    Eigen::Vector3d pin_trans = model.jointPlacements[i].translation();
 
-  std::cout << pin_rot << "\n";
-  std::cout << pin_trans << "\n";
+    for (c = 0; c < 3; c = c + 1) {
+      for (r = 0; r < 3; r = r + 1) {
+        double entry = pin_rot.coeffRef(c, r);
+        if (std::abs(entry) < 1e-5)
+          X_T[i].rot.set_entry_to_constant(c, r, 0);
+        else
+          X_T[i].rot.set_entry_to_constant(c, r, entry);
+      }
+    }
 
-  for (c = 0; c < 3; c = c + 1) {
-    for (r = 0; r < 3; r = r + 1) {
-      double entry = pin_rot.coeffRef(c, r);
-      if (std::abs(entry) < 1e-5)
-        X1.rot.set_entry_to_constant(c, r, 0);
-      else
-        X1.rot.set_entry_to_constant(c, r, entry);
+    X_T[i].trans.set_x(pin_trans.coeffRef(0));
+    X_T[i].trans.set_y(pin_trans.coeffRef(1));
+    X_T[i].trans.set_z(pin_trans.coeffRef(2));
+  }
+}
+
+dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
+  Xform<double> X_T[model.njoints];
+  Xform<double> X_J[model.njoints];
+  Xform<double> X_0[model.njoints];
+
+  typedef typename Model::JointIndex JointIndex;
+  static_var<JointIndex> i;
+
+  set_X_T(X_T, model);
+
+  static_var<int> jtype;
+  static_var<int> axis;
+
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
+    jtype = get_jtype(model, i);
+    axis = get_joint_axis(model, i);
+
+    if (jtype == 'R') {
+      X_J[i].set_revolute_axis(axis);
+    }
+    if (jtype == 'P') {
+      X_J[i].set_prismatic_axis(axis);
     }
   }
 
-  X1.trans.set_x(pin_trans.coeffRef(0));
-  X1.trans.set_y(pin_trans.coeffRef(1));
-  X1.trans.set_z(pin_trans.coeffRef(2));
+  std::string X_str("X");
 
-  X2.set_revolute_axis('Z');
-  X2.jcalc(q(1));
+  static_var<JointIndex> parent;
+  Xform<double> X_pi;
 
-  X3 = X1 * X2;
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
+    X_J[i].jcalc(q(i-1));
+
+    X_pi = X_T[i] * X_J[i];
+    parent = model.parents[i];
+    if (parent > 0) {
+      X_0[i] = X_0[parent] * X_pi;
+    }
+    else {
+      X_0[i] = X_pi;
+    }
+  }
+
+  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
+    if (i <= 4) {
+      ctup::print_Xmat("XT ", X_T[i]);
+      ctup::print_Xmat("XJ ", X_J[i]);
+      X_pi = X_T[i] * X_J[i];
+      ctup::print_Xmat("Xpi ", X_pi);
+      ctup::print_Xmat("Xpar ", X_0[model.parents[i]]);
+    }
+
+    std::string prefix("X ");
+    ctup::print_Xmat(prefix + std::to_string(i), X_0[i]);
+  }
 
   dyn_var<builder::eigen_Xmat_t> final_ans;
+  toEigen(final_ans, X_0[model.njoints-1]);
 
-  toEigen(final_ans, X3);
-
+  // returns final mat
   return final_ans;
 }
+
+//dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
+//  Xform<double> X[model.njoints];
+//
+//  static_var<int> r;
+//  static_var<int> c;
+//
+//  Eigen::Matrix3d pin_rot = model.jointPlacements[1].rotation();
+//  Eigen::Vector3d pin_trans = model.jointPlacements[1].translation();
+//
+//  std::cout << pin_rot << "\n";
+//  std::cout << pin_trans << "\n";
+//
+//  for (c = 0; c < 3; c = c + 1) {
+//    for (r = 0; r < 3; r = r + 1) {
+//      double entry = pin_rot.coeffRef(c, r);
+//      if (std::abs(entry) < 1e-5)
+//        X[0].rot.set_entry_to_constant(c, r, 0);
+//      else
+//        X[0].rot.set_entry_to_constant(c, r, entry);
+//    }
+//  }
+//
+//  X[0].trans.set_x(pin_trans.coeffRef(0));
+//  X[0].trans.set_y(pin_trans.coeffRef(1));
+//  X[0].trans.set_z(pin_trans.coeffRef(2));
+//
+//  X[1].set_revolute_axis('Z');
+//  X[1].jcalc(q(1));
+//
+//  X[2] = X[0] * X[1];
+//
+//  dyn_var<builder::eigen_Xmat_t> final_ans;
+//
+//  toEigen(final_ans, X[2]);
+//
+//  return final_ans;
+//}
 
 int main(int argc, char* argv[]) {
   const std::string urdf_filename = argv[1];
@@ -180,7 +195,17 @@ int main(int argc, char* argv[]) {
   block::c_code_generator codegen(of);
 
   of << "#include \"Eigen/Dense\"\n\n";
+  of << "#include <iostream>\n\n";
   of << "namespace ctup_gen {\n\n";
+
+  of << "void print_string(const char* str) {\n";
+  of << "  std::cout << str << \"\\n\";\n";
+  of << "}\n\n";
+
+  of << "template<typename Derived>\n";
+  of << "void print_matrix(const Eigen::MatrixBase<Derived>& matrix) {\n";
+  of << "  std::cout << matrix << \"\\n\";\n";
+  of << "}\n\n";
 
   builder::builder_context context;
 
