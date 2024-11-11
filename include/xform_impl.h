@@ -213,6 +213,9 @@ public:
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) {
     size_t flattened_idx = get_flattened_index(i, j);
+
+    if (std::abs(val) < 1e-5)
+      val = 0;
     
     if (sparsity_type_id == DENSE)
       assertm(false, "no constant tracking for DENSE matrices");
@@ -270,8 +273,8 @@ public:
   }
 
   void set_identity() {
-    for (static_var<int> i = 0; i < n_cols; i = i+1) {
-      for (static_var<int> j = 0; j < n_rows; j = j+1) {
+    for (static_var<int> i = 0; i < n_rows; i = i+1) {
+      for (static_var<int> j = 0; j < n_cols; j = j+1) {
         set_entry_to_constant(i, j, 0);
       }
     }
@@ -289,21 +292,6 @@ struct Translation_expr : public Matrix_expr<Scalar> {
     // [y] cross = [ z  0  -x]
     // [z]         [-y  x   0]
     // zero along diagonal
-    //if (i == j)
-    //  return 0;
-    //if (i == 1 && j == 0)
-    //  return -get_z();
-    //if (i == 0 && j == 1)
-    //  return get_z();
-    //if (i == 2 && j == 0)
-    //  return get_y();
-    //if (i == 0 && j == 2)
-    //  return -get_y();
-    //if (i == 2 && j == 1)
-    //  return -get_x();
-    //if (i == 1 && j == 2)
-    //  return get_x();
-
     if (i == j)
       return 0;
     if (i == 1 && j == 0)
@@ -354,18 +342,16 @@ struct Xform_expr : public Matrix_expr<Scalar> {
       // rotation part
       return get_rotation_expr().get_value_at(i-3, j-3);
     }
-    else if (i < 3 && j >= 3) {
-    //else if (i >= 3 && j < 3) {
+    else if (i >= 3 && j < 3) {
       // -Erx
       // we need to compute matmul entry for -Erx
-      size_t c = i;
-      size_t r = j-3;
+      size_t r = i-3;
+      size_t c = j;
 
       dyn_var<Scalar> entry = 0;
       static_var<int> k;
       for (k = 0; k < 3; k = k+1) {
-        //entry += -get_rotation_expr().get_value_at(k, r) * get_translation_expr().get_value_at(c, k);
-        entry += -(get_rotation_expr().get_value_at(k, r) * get_translation_expr().get_value_at(k, c));
+        entry += -(get_rotation_expr().get_value_at(r, k) * get_translation_expr().get_value_at(k, c));
       }
       return entry;
     }
@@ -413,7 +399,7 @@ public:
   }
 
   void set_x(Scalar val) {
-    if (val == 0) {
+    if (std::abs(val) < 1e-5) {
       has_x = false;
       x = 0;
       return;
@@ -422,7 +408,7 @@ public:
     x = val;
   }
   void set_y(Scalar val) {
-    if (val == 0) {
+    if (std::abs(val) < 1e-5) {
       has_y = false;
       y = 0;
       return;
@@ -431,7 +417,7 @@ public:
     y = val;
   }
   void set_z(Scalar val) {
-    if (val == 0) {
+    if (std::abs(val) < 1e-5) {
       has_z = false;
       z = 0;
       return;
@@ -546,6 +532,7 @@ struct Rotation {
   }
 
   void jcalc(const dyn_var<Scalar> &q_i) {
+    // Featherstone, Table 2.2
     sinq = backend::sin(q_i);
     cosq = backend::cos(q_i);
 
@@ -553,20 +540,20 @@ struct Rotation {
 
     if (has_x) {
       storage.set_entry_to_dyn(1, 1, cosq);
-      storage.set_entry_to_dyn(1, 2, -sinq);
-      storage.set_entry_to_dyn(2, 1, sinq);
+      storage.set_entry_to_dyn(1, 2, sinq);
+      storage.set_entry_to_dyn(2, 1, -sinq);
       storage.set_entry_to_dyn(2, 2, cosq);
     }
     else if (has_y) {
       storage.set_entry_to_dyn(0, 0, cosq);
-      storage.set_entry_to_dyn(0, 2, sinq);
-      storage.set_entry_to_dyn(2, 0, -sinq);
+      storage.set_entry_to_dyn(0, 2, -sinq);
+      storage.set_entry_to_dyn(2, 0, sinq);
       storage.set_entry_to_dyn(2, 2, cosq);
     }
     else if (has_z) {
       storage.set_entry_to_dyn(0, 0, cosq);
-      storage.set_entry_to_dyn(0, 1, -sinq);
-      storage.set_entry_to_dyn(1, 0, sinq);
+      storage.set_entry_to_dyn(0, 1, sinq);
+      storage.set_entry_to_dyn(1, 0, -sinq);
       storage.set_entry_to_dyn(1, 1, cosq);
     }
   }
@@ -662,7 +649,6 @@ struct Translation_expr_leaf : public Translation_expr<Scalar> {
 
   Translation_expr_leaf(const struct Translation<Scalar>& trans) : m_trans(trans) {}
 
-
   const builder::builder get_x() const override {
     return m_trans.get_x();
   }
@@ -753,13 +739,7 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
     dyn_var<Scalar> sum = 0;
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < 3; k = k + 1) {
-      // for row-major indexing we'd do:
-      // expr1.get_value_at(i, k) * expr2.get_value_at(k, j) 
-      // where i is row-idx, j is col-idx
-      // since we are col-major default, we do:
-      //sum += expr1.get_value_at(k, j) * expr2.get_value_at(i, k); 
       sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j); 
-      // where i is col-idx, j is row-idx
     }
     return sum;
   }
@@ -768,7 +748,6 @@ struct Rotation_expr_mul : public Rotation_expr<Scalar> {
     for (static_var<size_t> k = 0; k < 3; k = k + 1) {
       // when summing up products of inner_dim, if any one product is nonzero
       // then (i, j) is guaranteed to be nonzero.
-      //if (expr1.is_nonzero(k, j) && expr2.is_nonzero(i, k))
       if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
         return true;
     }
