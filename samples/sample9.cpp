@@ -1,3 +1,4 @@
+// ./build/sample9 ./deps/pinocchio/models/baxter_simple.urdf ../ctup-experiments/gen/fk_gen_unrolled.h
 #include "backend.h"
 #include "spatial_algebra.h"
 #include "utils.h"
@@ -110,8 +111,6 @@ dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vec
     }
   }
 
-  std::string X_str("X");
-
   static_var<JointIndex> parent;
   Xform<double> X_pi;
 
@@ -128,63 +127,24 @@ dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vec
     }
   }
 
-  for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-    if (i <= 4) {
-      ctup::print_Xmat_pin_order("XT ", X_T[i]);
-      ctup::print_Xmat_pin_order("XJ ", X_J[i]);
-      X_pi = X_J[i] * X_T[i];
-      ctup::print_Xmat_pin_order("Xpi ", X_pi);
-      ctup::print_Xmat_pin_order("Xpar ", X_0[model.parents[i]]);
-    }
+  //for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
+  //  if (i <= 4) {
+  //    ctup::print_Xmat_pin_order("XT ", X_T[i]);
+  //    ctup::print_Xmat_pin_order("XJ ", X_J[i]);
+  //    X_pi = X_J[i] * X_T[i];
+  //    ctup::print_Xmat_pin_order("Xpi ", X_pi);
+  //    ctup::print_Xmat_pin_order("Xpar ", X_0[model.parents[i]]);
+  //  }
 
-    std::string prefix("X ");
-    ctup::print_Xmat_pin_order(prefix + std::to_string(i), X_0[i]);
-  }
+  //  std::string prefix("X ");
+  //  ctup::print_Xmat_pin_order(prefix + std::to_string(i), X_0[i]);
+  //}
 
   dyn_var<builder::eigen_Xmat_t> final_ans;
   toPinEigen(final_ans, X_0[model.njoints-1]);
 
-  // returns final mat
   return final_ans;
 }
-
-//dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
-//  Xform<double> X[model.njoints];
-//
-//  static_var<int> r;
-//  static_var<int> c;
-//
-//  Eigen::Matrix3d pin_rot = model.jointPlacements[1].rotation();
-//  Eigen::Vector3d pin_trans = model.jointPlacements[1].translation();
-//
-//  std::cout << pin_rot << "\n";
-//  std::cout << pin_trans << "\n";
-//
-//  for (c = 0; c < 3; c = c + 1) {
-//    for (r = 0; r < 3; r = r + 1) {
-//      double entry = pin_rot.coeffRef(c, r);
-//      if (std::abs(entry) < 1e-5)
-//        X[0].rot.set_entry_to_constant(c, r, 0);
-//      else
-//        X[0].rot.set_entry_to_constant(c, r, entry);
-//    }
-//  }
-//
-//  X[0].trans.set_x(pin_trans.coeffRef(0));
-//  X[0].trans.set_y(pin_trans.coeffRef(1));
-//  X[0].trans.set_z(pin_trans.coeffRef(2));
-//
-//  X[1].set_revolute_axis('Z');
-//  X[1].jcalc(q(1));
-//
-//  X[2] = X[0] * X[1];
-//
-//  dyn_var<builder::eigen_Xmat_t> final_ans;
-//
-//  toEigen(final_ans, X[2]);
-//
-//  return final_ans;
-//}
 
 int main(int argc, char* argv[]) {
   const std::string urdf_filename = argv[1];
@@ -214,11 +174,8 @@ int main(int argc, char* argv[]) {
 
   builder::builder_context context;
 
-  //auto ast = context.extract_function_ast(set_X_T, "set_X_T", model);
-  //block::c_code_generator::generate_code(ast, of, 0);
-
   auto ast = context.extract_function_ast(fk, "fk", model);
-  ast->dump(std::cout, 0);
+  //ast->dump(std::cout, 0);
   block::c_code_generator::generate_code(ast, of, 0);
 
   of << "}\n";

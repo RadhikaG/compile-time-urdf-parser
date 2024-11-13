@@ -532,6 +532,7 @@ struct Rotation : public Matrix<Scalar> {
 
   Rotation() : Matrix<Scalar>(3, 3, Storage<Scalar>::SPARSE_UNROLLED),
     is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
+    storage.set_identity();
   }
 
   void set_revolute_axis(char axis) {
