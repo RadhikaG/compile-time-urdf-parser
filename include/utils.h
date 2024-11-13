@@ -35,16 +35,43 @@ void toPinEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
   }
 }
 
+template<typename Scalar>
+void toEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
+  // pinocchio outputs transpose of actual matrix
+  static_var<int> r,c;
+
+  for (c = 0; c < 6; c = c + 1) {
+    for (r = 0; r < 6; r = r + 1) {
+      mat.coeffRef(r, c) = Xform_expr_leaf<Scalar>(xform).get_value_at(r, c);
+    }
+  }
+}
 
 template<typename Scalar>
 void print_Xmat(Xform<Scalar> &xform) {
+  dyn_var<builder::eigen_Xmat_t> tmp;
+  toEigen(tmp, xform);
+  print_matrix(tmp);
+}
+
+template<typename Scalar>
+void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
+  dyn_var<builder::eigen_Xmat_t> tmp;
+  toEigen(tmp, xform);
+
+  print_string(prefix.c_str());
+  print_matrix(tmp);
+}
+
+template<typename Scalar>
+void print_Xmat_pin_order(Xform<Scalar> &xform) {
   dyn_var<builder::eigen_Xmat_t> tmp;
   toPinEigen(tmp, xform);
   print_matrix(tmp);
 }
 
 template<typename Scalar>
-void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
+void print_Xmat_pin_order(std::string prefix, Xform<Scalar> &xform) {
   dyn_var<builder::eigen_Xmat_t> tmp;
   toPinEigen(tmp, xform);
 

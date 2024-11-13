@@ -61,12 +61,12 @@ void set_X_T(Xform<double> X_T[], const Model &model) {
   static_var<int> c;
 
   for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
-    Eigen::Matrix3d pin_rot = model.jointPlacements[i].rotation();
-    Eigen::Vector3d pin_trans = model.jointPlacements[i].translation();
+    Eigen::Matrix<double, 6, 6> pin_X_T = model.jointPlacements[i];
 
+    // setting E
     for (r = 0; r < 3; r = r + 1) {
       for (c = 0; c < 3; c = c + 1) {
-        double entry = pin_rot.coeffRef(c, r);
+        double entry = pin_X_T.coeffRef(c, r);
         if (std::abs(entry) < 1e-5)
           X_T[i].rot.set_entry_to_constant(r, c, 0);
         else
@@ -74,9 +74,14 @@ void set_X_T(Xform<double> X_T[], const Model &model) {
       }
     }
 
-    X_T[i].trans.set_x(pin_trans.coeffRef(0));
-    X_T[i].trans.set_y(pin_trans.coeffRef(1));
-    X_T[i].trans.set_z(pin_trans.coeffRef(2));
+    // setting -E*r-cross terms
+
+    for (r = 0; r < 3; r = r + 1) {
+      for (c = 0; c < 3; c = c + 1) {
+        double entry = pin_X_T.coeffRef(c, r+3);
+        X_T[i].minus_E_rcross.set_entry_to_constant(r, c, entry);
+      }
+    }
   }
 }
 
@@ -125,15 +130,15 @@ dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vec
 
   for (i = 1; i < (JointIndex)model.njoints; i = i+1) {
     if (i <= 4) {
-      ctup::print_Xmat("XT ", X_T[i]);
-      ctup::print_Xmat("XJ ", X_J[i]);
+      ctup::print_Xmat_pin_order("XT ", X_T[i]);
+      ctup::print_Xmat_pin_order("XJ ", X_J[i]);
       X_pi = X_J[i] * X_T[i];
-      ctup::print_Xmat("Xpi ", X_pi);
-      ctup::print_Xmat("Xpar ", X_0[model.parents[i]]);
+      ctup::print_Xmat_pin_order("Xpi ", X_pi);
+      ctup::print_Xmat_pin_order("Xpar ", X_0[model.parents[i]]);
     }
 
     std::string prefix("X ");
-    ctup::print_Xmat(prefix + std::to_string(i), X_0[i]);
+    ctup::print_Xmat_pin_order(prefix + std::to_string(i), X_0[i]);
   }
 
   dyn_var<builder::eigen_Xmat_t> final_ans;
