@@ -17,13 +17,8 @@ LDFLAGS=
 CFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) compile-flags)
 LDFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) linker-flags)
 
-CFLAGS+=$(shell export PKG_CONFIG_PATH=$(PINOCCHIO_DIR)/install/lib/pkgconfig:$PKG_CONFIG_PATH && pkg-config --cflags pinocchio)
-LDFLAGS+=$(shell export PKG_CONFIG_PATH=$(PINOCCHIO_DIR)/install/lib/pkgconfig:$PKG_CONFIG_PATH && pkg-config --libs pinocchio)
-
-DEPS+=$(BUILD_DIR)/buildit.dep
+DEPS=$(BUILD_DIR)/buildit.dep
 INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR)
-
-DEPS+=$(BUILD_DIR)/pinocchio.dep
 
 LIBRARY=$(BUILD_DIR)/lib$(LIBRARY_NAME).a
 
