@@ -35,6 +35,7 @@ struct Matrix_expr {
   //virtual const builder::builder get_value() const;
   virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
   virtual int is_nonzero(size_t i, size_t j) const { return false; }
+  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>{}; }
 };
 
 // Design intentions: 
@@ -314,6 +315,8 @@ struct Translation_expr : public Matrix_expr<Scalar> {
   virtual const builder::builder get_y() const { return dyn_var<int>(); }
   virtual const builder::builder get_z() const { return dyn_var<int>(); }
 
+  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>({3, 3}); }
+
   virtual int has_x() const { return false; }
   virtual int has_y() const { return false; }
   virtual int has_z() const { return false; }
@@ -353,6 +356,8 @@ struct Xform_expr : public Matrix_expr<Scalar> {
       return 0;
     }
   }
+
+  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>({6, 6}); }
 
   virtual const Matrix_expr<Scalar>& get_rotation_expr() const { return *new Matrix_expr<Scalar>(); }
   virtual const Translation_expr<Scalar>& get_translation_expr() const { return *new Translation_expr<Scalar>(); }
@@ -669,14 +674,22 @@ struct Xform {
 template<typename Scalar>
 struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
   const struct Matrix<Scalar>& m_mat;
+  std::vector<size_t> expr_shape;
 
-  Matrix_expr_leaf(const struct Matrix<Scalar>& mat) : m_mat(mat) {}
+  Matrix_expr_leaf(const struct Matrix<Scalar>& mat) : m_mat(mat) {
+    expr_shape.push_back(m_mat.n_rows);
+    expr_shape.push_back(m_mat.n_cols);
+  }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     if (m_mat.storage.is_constant(i, j))
       return m_mat.storage.get_constant_entry(i, j);
     else
       return m_mat.storage.get_dyn_entry(i, j);
+  }
+
+  const std::vector<size_t> get_expr_shape() const {
+    return expr_shape;
   }
 
   int is_nonzero(size_t i, size_t j) const override {
@@ -688,8 +701,16 @@ template<typename Scalar>
 struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
   const struct Matrix_expr<Scalar>& expr1;
 
+  std::vector<size_t> expr_shape;
+
   Matrix_expr_unary_minus(const struct Matrix_expr<Scalar>& expr1) :
-    expr1(expr1) {}
+    expr1(expr1) {
+    expr_shape = expr1.get_expr_shape();
+  }
+
+  const std::vector<size_t> get_expr_shape() const {
+    return expr_shape;
+  }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     return -expr1.get_value_at(i, j);
@@ -702,13 +723,23 @@ struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
 
 template<typename Scalar>
 struct Matrix_expr_add : public Matrix_expr<Scalar> {
-  // todo: we need to add dimension asserts for matmul
-  // will do later.
   const struct Matrix_expr<Scalar>& expr1;
   const struct Matrix_expr<Scalar>& expr2;
 
+  std::vector<size_t> expr_shape;
+
   Matrix_expr_add(const struct Matrix_expr<Scalar>& expr1, const struct Matrix_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {}
+    expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const {
+    return expr_shape;
+  }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     return expr1.get_value_at(i, j) + expr2.get_value_at(i, j); 
@@ -721,26 +752,37 @@ struct Matrix_expr_add : public Matrix_expr<Scalar> {
 
 template<typename Scalar>
 struct Matrix_expr_mul : public Matrix_expr<Scalar> {
-  // todo: we need to add dimension asserts for matmul
-  // will do later.
   const struct Matrix_expr<Scalar>& expr1;
   const struct Matrix_expr<Scalar>& expr2;
 
+  std::vector<size_t> expr_shape;
+
   Matrix_expr_mul(const struct Matrix_expr<Scalar>& expr1, const struct Matrix_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {}
+    expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[1] == shape2[0], "inner dim of matmul expr must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape2[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const {
+    return expr_shape;
+  }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
+    const size_t inner_dim = expr1.get_expr_shape()[1];
     dyn_var<Scalar> sum = 0;
     // k is inner_dim for matmul
-    // todo: k needs to change later
-    for (static_var<size_t> k = 0; k < 3; k = k + 1) {
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
       sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j); 
     }
     return sum;
   }
 
   int is_nonzero(size_t i, size_t j) const override {
-    for (static_var<size_t> k = 0; k < 3; k = k + 1) {
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
       // when summing up products of inner_dim, if any one product is nonzero
       // then (i, j) is guaranteed to be nonzero.
       if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
