@@ -27,6 +27,7 @@ using builder::static_var;
 using pinocchio::Model;
 
 using ctup::Xform;
+using ctup::EigenMatrix;
 
 static int get_jtype(const Model &model, Model::JointIndex i) {
   std::string joint_name = model.joints[i].shortname();
@@ -86,7 +87,7 @@ void set_X_T(Xform<double> X_T[], const Model &model) {
   }
 }
 
-dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
+dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   Xform<double> X_T[model.njoints];
   Xform<double> X_J[model.njoints];
   Xform<double> X_0[model.njoints];
@@ -140,7 +141,8 @@ dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vec
   //  ctup::print_Xmat_pin_order(prefix + std::to_string(i), X_0[i]);
   //}
 
-  dyn_var<builder::eigen_Xmat_t> final_ans;
+  dyn_var<EigenMatrix<double>> final_ans;
+  setEigenMatrixTemplateDims(final_ans, 6, 6);
   toPinEigen(final_ans, X_0[model.njoints-1]);
 
   return final_ans;

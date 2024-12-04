@@ -29,6 +29,7 @@ using builder::static_var;
 using pinocchio::Model;
 
 using ctup::Xform;
+using ctup::EigenMatrix;
 
 void set_X_T(Xform<double> X_T[], const Model &model) {
   typedef typename Model::JointIndex JointIndex;
@@ -62,7 +63,7 @@ void set_X_T(Xform<double> X_T[], const Model &model) {
   }
 }
 
-dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
+dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<builder::eigen_vectorXd_t &> q) {
   Xform<double> X_T[model.njoints];
 
   static_var<int> r;
@@ -81,7 +82,8 @@ dyn_var<builder::eigen_Xmat_t> fk(const Model &model, dyn_var<builder::eigen_vec
   print_Xmat("us X_T[1]:", X_T[1]);
   print_Xmat("us X2:", X2);
 
-  dyn_var<builder::eigen_Xmat_t> final_ans;
+  dyn_var<EigenMatrix<double>> final_ans;
+  setEigenMatrixTemplateDims(final_ans, 6, 6);
 
   toEigen(final_ans, X2);
 
