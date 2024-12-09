@@ -20,7 +20,6 @@
 #include "pinocchio/multibody/model.hpp"
 #include "pinocchio/parsers/urdf.hpp"
 #include "assert.h"
-#include <memory>
 #include <string>
 
 using builder::dyn_var;
@@ -82,8 +81,7 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<builder::eigen_vecto
   print_Xmat("us X_T[1]:", X_T[1]);
   print_Xmat("us X2:", X2);
 
-  dyn_var<EigenMatrix<double>> final_ans;
-  setEigenMatrixTemplateDims(final_ans, 6, 6);
+  dyn_var<EigenMatrix<double>> final_ans(6, 6);
 
   toEigen(final_ans, X2);
 

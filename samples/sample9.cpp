@@ -141,8 +141,7 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<builder::eigen_vecto
   //  ctup::print_Xmat_pin_order(prefix + std::to_string(i), X_0[i]);
   //}
 
-  dyn_var<EigenMatrix<double>> final_ans;
-  setEigenMatrixTemplateDims(final_ans, 6, 6);
+  dyn_var<EigenMatrix<double>> final_ans(6, 6);
   toPinEigen(final_ans, X_0[model.njoints-1]);
 
   return final_ans;
