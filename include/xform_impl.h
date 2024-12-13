@@ -277,12 +277,12 @@ public:
   void set_identity() {
     for (static_var<int> i = 0; i < n_rows; i = i+1) {
       for (static_var<int> j = 0; j < n_cols; j = j+1) {
-        set_entry_to_constant(i, j, 0);
+        if (i == j)
+          set_entry_to_constant(i, j, 1);
+        else
+          set_entry_to_constant(i, j, 0);
       }
     }
-    set_entry_to_constant(0, 0, 1);
-    set_entry_to_constant(1, 1, 1);
-    set_entry_to_constant(2, 2, 1);
   }
 };
 
@@ -309,13 +309,18 @@ struct Translation_expr : public Matrix_expr<Scalar> {
     if (i == 1 && j == 2)
       return -get_x();
   }
-  virtual int is_nonzero(size_t i, size_t j) const override { return false; }
+
+  virtual int is_nonzero(size_t i, size_t j) const override {
+    if (i == j)
+      return false;
+    return true;
+  }
 
   virtual const builder::builder get_x() const { return dyn_var<int>(); }
   virtual const builder::builder get_y() const { return dyn_var<int>(); }
   virtual const builder::builder get_z() const { return dyn_var<int>(); }
 
-  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>({3, 3}); }
+  virtual const std::vector<size_t> get_expr_shape(void) const override { return std::vector<size_t>({3, 3}); }
 
   virtual int has_x() const { return false; }
   virtual int has_y() const { return false; }
@@ -357,7 +362,25 @@ struct Xform_expr : public Matrix_expr<Scalar> {
     }
   }
 
-  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>({6, 6}); }
+  virtual int is_nonzero(size_t i, size_t j) const override {
+    if (i < 3 && j < 3) {
+      // rotation part
+      return get_rotation_expr().is_nonzero(i, j);
+    }
+    else if (i >= 3 && j >= 3) {
+      // rotation part
+      return get_rotation_expr().is_nonzero(i-3, j-3);
+    }
+    else if (i >= 3 && j < 3) {
+      // -Erx
+      return get_minus_E_rcross_expr().is_nonzero(i-3, j);
+    }
+    else {
+      return false;
+    }
+  }
+
+  virtual const std::vector<size_t> get_expr_shape(void) const override { return std::vector<size_t>({6, 6}); }
 
   virtual const Matrix_expr<Scalar>& get_rotation_expr() const { return *new Matrix_expr<Scalar>(); }
   virtual const Translation_expr<Scalar>& get_translation_expr() const { return *new Translation_expr<Scalar>(); }
@@ -682,13 +705,15 @@ struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
-    if (m_mat.storage.is_constant(i, j))
+    if (m_mat.storage.is_constant(i, j)) {
       return m_mat.storage.get_constant_entry(i, j);
-    else
+    }
+    else {
       return m_mat.storage.get_dyn_entry(i, j);
+    }
   }
 
-  const std::vector<size_t> get_expr_shape() const {
+  const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
@@ -708,7 +733,7 @@ struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
     expr_shape = expr1.get_expr_shape();
   }
 
-  const std::vector<size_t> get_expr_shape() const {
+  const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
@@ -737,9 +762,9 @@ struct Matrix_expr_add : public Matrix_expr<Scalar> {
     expr_shape.push_back(shape1[1]);
   }
 
-  const std::vector<size_t> get_expr_shape() const {
+  const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
-  }
+    }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     return expr1.get_value_at(i, j) + expr2.get_value_at(i, j); 
@@ -766,7 +791,7 @@ struct Matrix_expr_mul : public Matrix_expr<Scalar> {
     expr_shape.push_back(shape2[1]);
   }
 
-  const std::vector<size_t> get_expr_shape() const {
+  const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
