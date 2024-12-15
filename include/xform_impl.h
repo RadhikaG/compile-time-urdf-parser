@@ -132,7 +132,7 @@ public:
   }
 
   size_t get_flattened_index(size_t i, size_t j) const {
-    size_t flattened;
+    size_t flattened = -1;
     if (storage_order_id == COL_MAJ)
       // i is col-idx, j is row-idx
       flattened = i * n_rows + j;
