@@ -46,6 +46,13 @@ public:
   dyn_var<double> operator[](const builder &bt) {
     return (dyn_var<double>)(cast)this->dyn_var_impl<eigen_vectorXd_t>::operator[](bt);
   }
+
+  dyn_var<eigen_vectorXd_t (Eigen::Index,Eigen::Index)> setZero = as_member(this, "setZero");
+  dyn_var<eigen_vectorXd_t (Eigen::Index,Eigen::Index)> setOnes = as_member(this, "setOnes");
+  dyn_var<eigen_vectorXd_t (void)> cos = as_member(this, "cos");
+  dyn_var<eigen_vectorXd_t (void)> array = as_member(this, "array");
+  dyn_var<eigen_vectorXd_t (double)> setConstant = as_member(this, "setConstant");
+  dyn_var<eigen_vectorXd_t (void)> sin = as_member(this, "sin");
 };
 
 template <typename Scalar>
@@ -86,10 +93,12 @@ public:
     return (dyn_var<Scalar>)(cast)this->dyn_var_impl<ctup::EigenMatrix<Scalar>>::operator[](bt);
   }
 
-  dyn_var<double (Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
-  dyn_var<double (Eigen::Index, Eigen::Index)> block = as_member(this, "block<3,3>"); // remove template params later
+  dyn_var<double& (Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
+  dyn_var<double& (Eigen::Index, Eigen::Index)> block = as_member(this, "block<3,3>"); // remove template params later
   dyn_var<void (void)> setZero = as_member(this, "setZero");
-  dyn_var<ctup::EigenMatrix<Scalar> (void)> transpose = as_member(this, "transpose");
+  dyn_var<ctup::EigenMatrix<Scalar>& (double)> setConstant = as_member(this, "setConstant");
+  dyn_var<ctup::EigenMatrix<Scalar>& (void)> transpose = as_member(this, "transpose");
+  dyn_var<eigen_vectorXd_t&  (Eigen::Index)> col = as_member(this, "col");
 };
 
 }
