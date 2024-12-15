@@ -7,7 +7,7 @@
 using builder::dyn_var;
 using builder::static_var;
 
-void shonan(dyn_var<int**> a, dyn_var<int*> v, dyn_var<int*> res) {
+static void shonan(dyn_var<int**> a, dyn_var<int*> v, dyn_var<int*> res) {
 
   static_var<int> n = 3;
 

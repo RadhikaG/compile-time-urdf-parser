@@ -183,6 +183,9 @@ public:
       }
       return const_cast<dyn_var<Scalar[]>&>(m_buffer)[get_dense_to_sparse_idx(i, j)];
     }
+
+    assertm(false, "no impl for sparsity type");
+    return sparse_vars[0].dyn_entry; // return bs value
   }
 
   // meant to be used on RHS of an assignment statement
@@ -211,6 +214,9 @@ public:
       else
         assertm(false, "entry is not constant");
     }
+
+    assertm(false, "no constant tracking for this sparsity type");
+    return -1;
   }
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) {
@@ -250,6 +256,9 @@ public:
       else
         return false;
     }
+
+    assertm(false, "constants are untracked for this sparsity type");
+    return false;
   }
   
   int is_zero(size_t i, size_t j) const {
@@ -258,16 +267,20 @@ public:
     if (sparsity_type_id == SPARSE_UNROLLED) {
       if (!sparse_vars[flattened_idx].is_constant)
         return false;
-      else if (sparse_vars[flattened_idx].static_entry == 0)
-        return true;
+      else {
+        if (sparse_vars[flattened_idx].static_entry == 0)
+          return true;
+        else
+          return false;
+      }
     }
     else if (sparsity_type_id == SPARSE_MATRIX) {
       // check if we couldn't find entry that maps dense idx to sparse idx
       return (dense_to_sparse_idx.find(flattened_idx) == dense_to_sparse_idx.end());
     }
-    else {
-      assertm(false, "zero are untracked for this sparsity type");
-    }
+
+    assertm(false, "zero are untracked for this sparsity type");
+    return -1;
   }
 
   int is_nonzero(size_t i, size_t j) const {
@@ -275,8 +288,8 @@ public:
   }
 
   void set_identity() {
-    for (static_var<int> i = 0; i < n_rows; i = i+1) {
-      for (static_var<int> j = 0; j < n_cols; j = j+1) {
+    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
         if (i == j)
           set_entry_to_constant(i, j, 1);
         else
@@ -308,12 +321,16 @@ struct Translation_expr : public Matrix_expr<Scalar> {
       return get_x();
     if (i == 1 && j == 2)
       return -get_x();
+
+    assertm(false, "index out of bounds");
+    return get_x(); // return bs value
   }
 
   virtual int is_nonzero(size_t i, size_t j) const override {
-    if (i == j)
-      return false;
-    return true;
+    //if (i == j)
+    //  return false;
+    //return true;
+    return false;
   }
 
   virtual const builder::builder get_x() const { return dyn_var<int>(); }
@@ -645,8 +662,8 @@ struct Xform {
   static_var<int> has_rotation;
   static_var<int> has_translation;
 
-  Xform() : has_rotation(true), has_translation(true), 
-    minus_E_rcross(3, 3, Storage<Scalar>::SPARSE_UNROLLED) {}
+  Xform() : minus_E_rcross(3, 3, Storage<Scalar>::SPARSE_UNROLLED),
+    has_rotation(true), has_translation(true) {}
 
   // if set_revolute/prismatic funcs are being called, it means this Xform is associated
   // with a joint.

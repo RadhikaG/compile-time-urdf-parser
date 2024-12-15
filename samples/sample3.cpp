@@ -6,7 +6,7 @@
 using builder::dyn_var;
 using builder::static_var;
 
-void ree() {
+static void ree() {
   std::vector<dyn_var<double>*> a, b, c;
 
   for (static_var<int> i = 0; i < 4; i = i+1) {

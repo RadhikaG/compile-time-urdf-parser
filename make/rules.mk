@@ -4,7 +4,7 @@
 
 $(LIBRARY_OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(INCLUDES) $(DEPS)
 	@mkdir -p $(@D)
-	$(CXXV) $(CFLAGS) $< -o $@ $(INCLUDE_FLAGS) -c
+	$(CXXV) $(CFLAGS_INTERNAL) $(CFLAGS) $< -o $@ $(INCLUDE_FLAGS) -c
 
 $(BUILD_DIR)/samples/%.o: $(SAMPLES_DIR)/%.cpp $(INCLUDES) $(DEPS)
 	@mkdir -p $(@D)
