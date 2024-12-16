@@ -18,21 +18,40 @@ using builder::static_var;
 
 namespace ctup {
 
+enum Sparsity_type_id {
+    DENSE,
+    SPARSE_UNROLLED,
+    //SPARSE_BLOCKED,
+    //SPARSE_MATRIX,
+    //SKEW_SYMM,
+};
+
 // todo: conditionally generate backend statements using hw features later
-struct HwFeatures {
+struct Flags {
+  bool simplify_zero;
+  Sparsity_type_id sparsity_type_id;
   bool is_vectorized;
   bool is_threaded;
+  size_t n_threads;
   enum {
     AVX2,
     AVX512,
     NEON
   } simd_type_id;
-  size_t n_threads;
+
+  Flags(Sparsity_type_id _sparsity_type_id=DENSE, 
+          bool _simplify_zero=true) : 
+      simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id) {}
 };
+// only one of this through ctup for now
+static Flags flags(
+        DENSE, // sparsity_type_id
+        true             // simplify_zero
+);
 
 template<typename Scalar>
 struct Matrix_expr {
-  //virtual const builder::builder get_value() const;
+  virtual const builder::builder get_value() const { return dyn_var<EigenMatrix<Scalar>>(); }
   virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
   virtual int is_nonzero(size_t i, size_t j) const { return false; }
   virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>{}; }
@@ -73,11 +92,11 @@ private:
   };
 
 public:
-  static_var<size_t> n_rows;
-  static_var<size_t> n_cols;
+  const size_t n_rows;
+  const size_t n_cols;
 
   // for dense
-  //dyn_var<builder::eigen_Xmat_t> m_matrix;
+  dyn_var<EigenMatrix<Scalar>> m_matrix;// = builder::defer_init();
 
   // for sparse unrolled
   std::vector<SparseEntry> sparse_vars;
@@ -89,13 +108,7 @@ public:
   // sparse index to index into either m_buffer or sparse_vars
   std::unordered_map<size_t, size_t> dense_to_sparse_idx;
 
-  enum Sparsity_type_id {
-    DENSE, // default
-    SPARSE_UNROLLED,
-    SPARSE_BLOCKED,
-    SPARSE_MATRIX,
-    SKEW_SYMM,
-  } sparsity_type_id;
+  Sparsity_type_id sparsity_type_id;
 
   enum Storage_order_id {
     COL_MAJ, // default
@@ -109,19 +122,16 @@ public:
     VARIABLE,
   } sparse_entry_type_id;
 
-  Storage() : n_rows(0), n_cols(0), sparsity_type_id(DENSE), storage_order_id(COL_MAJ) {
-    m_buffer.deferred_init();
-  }
-
-  Storage(size_t _n_rows, size_t _n_cols, Sparsity_type_id _sti=DENSE, Storage_order_id _soi=COL_MAJ) : 
-      n_rows(_n_rows), n_cols(_n_cols), sparsity_type_id(_sti), storage_order_id(_soi) {
+  Storage(size_t _n_rows, size_t _n_cols, 
+          Sparsity_type_id _sti = flags.sparsity_type_id, Storage_order_id _soi = COL_MAJ) : 
+          n_rows(_n_rows), n_cols(_n_cols), m_matrix(n_rows, n_cols),
+          sparsity_type_id(_sti), storage_order_id(_soi) {
     if (sparsity_type_id == SPARSE_UNROLLED) {
       // set all matrix entries as non constant in the beginning
       sparse_vars.resize(n_rows * n_cols);
     }
-    if (sparsity_type_id == DENSE) {
-      m_buffer.deferred_init();
-      resize_arr(m_buffer, n_rows * n_cols);
+    else if (sparsity_type_id == DENSE) {
+      //m_matrix.deferred_init();
     }
   }
 
@@ -155,18 +165,11 @@ public:
     return dense_to_sparse_idx.find(flattened_idx)->second;
   }
 
-  void set_entry_to_dyn(size_t i, size_t j) {
-    size_t flattened_idx = get_flattened_index(i, j);
-    SparseEntry &e = sparse_vars[flattened_idx];
-    e.is_constant = false;
-  }
-
   dyn_var<Scalar> _get(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
     if (sparsity_type_id == DENSE) {
-      //return m_matrix(i, j);
-      return const_cast<dyn_var<Scalar[]>&>(m_buffer)[flattened_idx];
+      return const_cast<dyn_var<EigenMatrix<Scalar>>&>(m_matrix).coeffRef(i, j);
     }
     if (sparsity_type_id == SPARSE_UNROLLED) {
       const SparseEntry &e = sparse_vars[flattened_idx];
@@ -176,13 +179,13 @@ public:
       }
       return e.dyn_entry;
     }
-    if (sparsity_type_id == SPARSE_MATRIX) {
-      if (is_zero(i, j)) {
-        const char * error_msg = append_idx_error_msg("can't retrieve constant (zero) value using (i, j), use get_constant_entry", i, j).c_str();
-        assertm(false, error_msg);
-      }
-      return const_cast<dyn_var<Scalar[]>&>(m_buffer)[get_dense_to_sparse_idx(i, j)];
-    }
+    //if (sparsity_type_id == SPARSE_MATRIX) {
+    //  if (is_zero(i, j)) {
+    //    const char * error_msg = append_idx_error_msg("can't retrieve constant (zero) value using (i, j), use get_constant_entry", i, j).c_str();
+    //    assertm(false, error_msg);
+    //  }
+    //  return const_cast<dyn_var<Scalar[]>&>(m_buffer)[get_dense_to_sparse_idx(i, j)];
+    //}
 
     assertm(false, "no impl for sparsity type");
     return sparse_vars[0].dyn_entry; // return bs value
@@ -197,6 +200,42 @@ public:
     return _get(i, j);
   }
 
+  builder::builder get_entry(size_t i, size_t j) const {
+    if (sparsity_type_id == DENSE) {
+      return get_dyn_entry(i, j);
+    }
+    else if (sparsity_type_id == SPARSE_UNROLLED) {
+      if (is_constant(i, j))
+        return get_constant_entry(i, j);
+      else
+        return get_dyn_entry(i, j);
+    }
+
+    assertm(false, "type not implemented");
+    return sparse_vars[0].dyn_entry; // return bs value
+  }
+
+  dyn_var<EigenMatrix<Scalar>> denseify() const {
+    if (sparsity_type_id == SPARSE_UNROLLED) {
+      dyn_var<EigenMatrix<Scalar>> converted_mat(n_rows, n_cols);
+
+      converted_mat.setZero();
+      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+          converted_mat.coeffRef(i, j) = get_entry(i, j);
+        }
+      }
+
+      return converted_mat;
+    }
+    else if (sparsity_type_id == DENSE) {
+      return m_matrix;
+    }
+
+    assertm(false, "type not implemented");
+    return false;
+  }
+
   Scalar get_constant_entry(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
     
@@ -208,25 +247,22 @@ public:
         assertm(false, "entry is not constant");
       return e.static_entry;
     }
-    else if (sparsity_type_id == SPARSE_MATRIX) {
-      if (is_zero(i, j))
-        return 0;
-      else
-        assertm(false, "entry is not constant");
-    }
 
-    assertm(false, "no constant tracking for this sparsity type");
-    return -1;
+    assertm(false, "constants are untracked for this sparsity type");
+    return false;
   }
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) {
     size_t flattened_idx = get_flattened_index(i, j);
 
-    if (std::abs(val) < 1e-5)
-      val = 0;
+    if (flags.simplify_zero) {
+      if (std::abs(val) < 1e-5)
+        val = 0;
+    }
     
-    if (sparsity_type_id == DENSE)
-      assertm(false, "no constant tracking for DENSE matrices");
+    if (sparsity_type_id == DENSE) {
+      m_matrix.coeffRef(i, j) = val;
+    }
     else if (sparsity_type_id == SPARSE_UNROLLED) {
       SparseEntry &e = sparse_vars[flattened_idx];
       e = val;
@@ -238,11 +274,20 @@ public:
   void set_entry_to_dyn(size_t i, size_t j, const dyn_var<Scalar> &val) {
     size_t flattened_idx = get_flattened_index(i, j);
     
-    if (sparsity_type_id == DENSE)
-      assertm(false, "no constant tracking for DENSE matrices");
+    if (sparsity_type_id == DENSE) {
+      m_matrix.coeffRef(i, j) = val;
+    }
     else if (sparsity_type_id == SPARSE_UNROLLED) {
       SparseEntry &e = sparse_vars[flattened_idx];
       e = val;
+    }
+    else
+      assertm(false, "todo unsupported");
+  }
+
+  void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) {
+    if (sparsity_type_id == DENSE) {
+      m_matrix = mat;
     }
     else
       assertm(false, "todo unsupported");
@@ -267,40 +312,38 @@ public:
     if (sparsity_type_id == SPARSE_UNROLLED) {
       if (!sparse_vars[flattened_idx].is_constant)
         return false;
-      else {
-        if (sparse_vars[flattened_idx].static_entry == 0)
-          return true;
-        else
-          return false;
-      }
-    }
-    else if (sparsity_type_id == SPARSE_MATRIX) {
-      // check if we couldn't find entry that maps dense idx to sparse idx
-      return (dense_to_sparse_idx.find(flattened_idx) == dense_to_sparse_idx.end());
+      else if (sparse_vars[flattened_idx].static_entry == 0)
+        return true;
+      else
+        return false;
     }
 
     assertm(false, "zero are untracked for this sparsity type");
-    return -1;
+    return false;
   }
 
   int is_nonzero(size_t i, size_t j) const {
     return !is_zero(i, j);
   }
 
-  void set_identity() {
-    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
-      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
-        if (i == j)
-          set_entry_to_constant(i, j, 1);
-        else
-          set_entry_to_constant(i, j, 0);
-      }
-    }
-  }
 };
 
 template<typename Scalar>
 struct Translation_expr : public Matrix_expr<Scalar> {
+  virtual const builder::builder get_value() const override {
+    dyn_var<EigenMatrix<Scalar>> translation_mat(3, 3);
+    translation_mat.setZero();
+
+    translation_mat.coeffRef(1, 0) = get_z();
+    translation_mat.coeffRef(0, 1) = -get_z();
+    translation_mat.coeffRef(0, 2) = get_y();
+    translation_mat.coeffRef(2, 0) = -get_y();
+    translation_mat.coeffRef(2, 1) = get_x();
+    translation_mat.coeffRef(1, 2) = -get_x();
+
+    return translation_mat;
+  }
+
   virtual const builder::builder get_value_at(size_t i, size_t j) const override {
     // get skew symmetric entry
     // [x]         [ 0 -z   y]
@@ -356,6 +399,17 @@ struct Translation_expr : public Matrix_expr<Scalar> {
 
 template<typename Scalar>
 struct Xform_expr : public Matrix_expr<Scalar> {
+  virtual const builder::builder get_value() const override {
+    dyn_var<EigenMatrix<Scalar>> X_mat(6, 6);
+    X_mat.setZero();
+
+    X_mat.block(0, 0) = get_rotation_expr().get_value();
+    X_mat.block(3, 3) = get_rotation_expr().get_value();
+    X_mat.block(3, 0) = get_minus_E_rcross_expr().get_value();
+
+    return X_mat;
+  }
+
   virtual const builder::builder get_value_at(size_t i, size_t j) const override { 
     // X matrix dense repr:
     // -Erx = -rot * cross(trans)
@@ -531,10 +585,8 @@ struct Matrix {
   const size_t n_rows;
   const size_t n_cols;
 
-  Matrix() {}
-
   Matrix(size_t _n_rows, size_t _n_cols, 
-          typename Storage<Scalar>::Sparsity_type_id _sti=Storage<Scalar>::DENSE, 
+          Sparsity_type_id _sti=flags.sparsity_type_id, 
           typename Storage<Scalar>::Storage_order_id _soi=Storage<Scalar>::COL_MAJ) :
     storage(_n_rows, _n_cols, _sti, _soi), n_rows(_n_rows), n_cols(_n_cols) 
     {}
@@ -543,8 +595,19 @@ struct Matrix {
     storage.set_entry_to_constant(i, j, val);
   }
 
+  void set_identity() {
+    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+        if (i == j)
+          set_entry_to_constant(i, j, 1);
+        else
+          set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
+
   void operator= (const Matrix_expr<Scalar> &rhs) {
-    if (storage.sparsity_type_id == Storage<Scalar>::SPARSE_UNROLLED) {
+    if (storage.sparsity_type_id == SPARSE_UNROLLED) {
       for (static_var<size_t> i = 0; i < n_rows; i = i + 1) {
         for (static_var<size_t> j = 0; j < n_cols; j = j + 1) {
           if (rhs.is_nonzero(i, j)) {
@@ -559,6 +622,9 @@ struct Matrix {
           }
         }
       }
+    }
+    else if (storage.sparsity_type_id == DENSE) {
+      storage.set_matrix(rhs.get_value());
     }
   }
 };
@@ -575,36 +641,21 @@ struct Rotation : public Matrix<Scalar> {
   static_var<int> has_y;
   static_var<int> has_z;
 
-  Rotation() : Matrix<Scalar>(3, 3, Storage<Scalar>::SPARSE_UNROLLED),
+  Rotation() : Matrix<Scalar>(3, 3),
     is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
-    storage.set_identity();
+    Matrix<Scalar>::set_identity();
   }
 
   void set_revolute_axis(char axis) {
     is_joint_xform = true;
     if (axis == 'X') {
       has_x = true;
-      storage.set_entry_to_constant(0, 0, 1);
-      storage.set_entry_to_dyn(1, 1);
-      storage.set_entry_to_dyn(1, 2);
-      storage.set_entry_to_dyn(2, 1);
-      storage.set_entry_to_dyn(2, 2);
     }
     else if (axis == 'Y') {
       has_y = true;
-      storage.set_entry_to_constant(1, 1, 1);
-      storage.set_entry_to_dyn(0, 0);
-      storage.set_entry_to_dyn(0, 2);
-      storage.set_entry_to_dyn(2, 0);
-      storage.set_entry_to_dyn(2, 2);
     }
     else if (axis == 'Z') {
       has_z = true;
-      storage.set_entry_to_constant(2, 2, 1);
-      storage.set_entry_to_dyn(0, 0);
-      storage.set_entry_to_dyn(0, 1);
-      storage.set_entry_to_dyn(1, 0);
-      storage.set_entry_to_dyn(1, 1);
     }
   }
 
@@ -662,8 +713,7 @@ struct Xform {
   static_var<int> has_rotation;
   static_var<int> has_translation;
 
-  Xform() : minus_E_rcross(3, 3, Storage<Scalar>::SPARSE_UNROLLED),
-    has_rotation(true), has_translation(true) {}
+  Xform() : minus_E_rcross(3, 3), has_rotation(true), has_translation(true) {}
 
   // if set_revolute/prismatic funcs are being called, it means this Xform is associated
   // with a joint.
@@ -721,13 +771,12 @@ struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
     expr_shape.push_back(m_mat.n_cols);
   }
 
+  const builder::builder get_value() const override {
+    return m_mat.storage.denseify(); 
+  }
+
   const builder::builder get_value_at(size_t i, size_t j) const override {
-    if (m_mat.storage.is_constant(i, j)) {
-      return m_mat.storage.get_constant_entry(i, j);
-    }
-    else {
-      return m_mat.storage.get_dyn_entry(i, j);
-    }
+    return m_mat.storage.get_entry(i, j);
   }
 
   const std::vector<size_t> get_expr_shape() const override {
@@ -752,6 +801,10 @@ struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
 
   const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
+    return -expr1.get_value(); 
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
@@ -781,7 +834,11 @@ struct Matrix_expr_add : public Matrix_expr<Scalar> {
 
   const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
-    }
+  }
+
+  const builder::builder get_value() const override {
+    return expr1.get_value() + expr2.get_value(); 
+  }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     return expr1.get_value_at(i, j) + expr2.get_value_at(i, j); 
@@ -810,6 +867,10 @@ struct Matrix_expr_mul : public Matrix_expr<Scalar> {
 
   const std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
+    return expr1.get_value() * expr2.get_value(); 
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {

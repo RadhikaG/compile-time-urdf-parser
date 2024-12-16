@@ -1,15 +1,10 @@
 #ifndef UTILS_H
 #define UTILS_H
-#include "builder/builder_base.h"
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
 #include "builder/dyn_var.h"
-#include <unordered_map>
-#include <vector>
 #include "backend.h"
 #include "xform_impl.h"
-
-#include <sstream>
 #include <cassert>
 // Use (void) to silence unused warnings.
 #define assertm(exp, msg) assert(((void)msg, exp))
@@ -20,11 +15,11 @@ using builder::static_var;
 namespace ctup {
 
 // the actual function implementation is in sample9.cpp
-builder::dyn_var<void (builder::eigen_Xmat_t &)> print_matrix = builder::as_global("print_matrix");
+builder::dyn_var<void (EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
 builder::dyn_var<void (char *)> print_string = builder::as_global("print_string");
 
 template<typename Scalar>
-void toPinEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
+void toPinEigen(dyn_var<EigenMatrix<Scalar>> &mat, Xform<Scalar> &xform) {
   // pinocchio outputs transpose of actual matrix
   static_var<int> r,c;
 
@@ -36,7 +31,7 @@ void toPinEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
 }
 
 template<typename Scalar>
-void toEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
+void toEigen(dyn_var<EigenMatrix<Scalar>> &mat, Xform<Scalar> &xform) {
   // pinocchio outputs transpose of actual matrix
   static_var<int> r,c;
 
@@ -49,34 +44,24 @@ void toEigen(dyn_var<builder::eigen_Xmat_t> &mat, Xform<Scalar> &xform) {
 
 template<typename Scalar>
 void print_Xmat(Xform<Scalar> &xform) {
-  dyn_var<builder::eigen_Xmat_t> tmp;
-  toEigen(tmp, xform);
-  print_matrix(tmp);
+  print_matrix(Xform_expr_leaf<Scalar>(xform).get_value());
 }
 
 template<typename Scalar>
 void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
-  dyn_var<builder::eigen_Xmat_t> tmp;
-  toEigen(tmp, xform);
-
   print_string(prefix.c_str());
-  print_matrix(tmp);
+  print_matrix(Xform_expr_leaf<Scalar>(xform).get_value());
 }
 
 template<typename Scalar>
 void print_Xmat_pin_order(Xform<Scalar> &xform) {
-  dyn_var<builder::eigen_Xmat_t> tmp;
-  toPinEigen(tmp, xform);
-  print_matrix(tmp);
+  print_matrix(Xform_expr_leaf<Scalar>(xform).get_value().transpose());
 }
 
 template<typename Scalar>
 void print_Xmat_pin_order(std::string prefix, Xform<Scalar> &xform) {
-  dyn_var<builder::eigen_Xmat_t> tmp;
-  toPinEigen(tmp, xform);
-
   print_string(prefix.c_str());
-  print_matrix(tmp);
+  print_matrix(Xform_expr_leaf<Scalar>(xform).get_value().transpose());
 }
 
 }
