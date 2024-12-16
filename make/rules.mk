@@ -1,5 +1,6 @@
 .PRECIOUS: $(BUILD_DIR)/%.o 
 .PRECIOUS: $(BUILD_DIR)/samples/%.o 
+.PRECIOUS: $(BUILD_DIR)/apps/sample10/driver.o
 
 
 $(LIBRARY_OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(INCLUDES) $(DEPS)
@@ -18,6 +19,13 @@ $(BUILD_DIR)/sample%: $(BUILD_DIR)/samples/sample%.o $(LIBRARY) $(DEPS)
 	@mkdir -p $(@D)
 	$(CXXLDV) -o $@ $< $(LDFLAGS)
 
-.PHONY: executables
-executables: $(SAMPLES)
+$(BUILD_DIR)/apps/sample10/driver.o: apps/sample10/driver.cpp $(INCLUDES) $(DEPS) apps/sample10/fk_gen.h
+	@mkdir -p $(@D)
+	$(CXXV) $(CFLAGS_INTERNAL) $(CFLAGS) $< -o $@ $(INCLUDE_FLAGS) -c
 
+$(BUILD_DIR)/driver: $(BUILD_DIR)/apps/sample10/driver.o $(LIBRARY) $(DEPS)
+	@mkdir -p $(@D)
+	$(CXXLDV) -o $@ $< $(LDFLAGS)
+
+.PHONY: executables
+executables: $(SAMPLES) $(BUILD_DIR)/driver
