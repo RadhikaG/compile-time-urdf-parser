@@ -171,7 +171,6 @@ static int get_joint_axis(const Model &model, Model::JointIndex i) {
 }
 
 void generate_output_sparsity(static_var<int> lhs[], static_var<int> rhs1[], static_var<int> rhs2[], int joint_id) {
-  int offset = joint_id * 36;
 
   static_var<int> is_inner_sum_nonzero = false;
   static_var<int> i, j, k;
@@ -194,7 +193,6 @@ void generate_output_sparsity(static_var<int> lhs[], static_var<int> rhs1[], sta
 }
 
 void generate_output_sparsity_2(static_var<int> lhs[], static_var<int> rhs1[], static_var<int> rhs2[], int joint_id,int joint_id2) {
-  int offset = joint_id * 36;
 
   static_var<int> is_inner_sum_nonzero = false;
   static_var<int> i, j, k;
@@ -211,7 +209,7 @@ void generate_output_sparsity_2(static_var<int> lhs[], static_var<int> rhs1[], s
           is_inner_sum_nonzero = 1;
         }
       }
-      lhs[flattened_idx(joint_id, i, j)] = rhs1[flattened_idx(joint_id2, i, k)] *rhs2[flattened_idx(joint_id, k, j)];
+      lhs[flattened_idx(joint_id, i, j)] = is_inner_sum_nonzero;
     }
   }
 }
@@ -250,10 +248,7 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
   static_var<int> axis;
 
   static_var<JointIndex> j = 1;
-  for (; j <(JointIndex)model.njoints; j = j+1) {
-    X_0[j] = dyn_var<EigenMatrix<double>>(16, 36);
-    X_J[j] = dyn_var<EigenMatrix<double>>(16, 36);
-  }
+
   dyn_var<EigenMatrix<double>> a(16,1);
   dyn_var<EigenMatrix<double>> b(16,1);
   dyn_var<EigenMatrix<double>> c(16,1);
@@ -263,26 +258,26 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
 
     jtype = get_jtype(model, i);
     axis = get_joint_axis(model, i);
-    ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).setZero();
+    (CAST_TO_EIGEN_MATRIX X_J[i]).setZero();
 
     builder::annotate(std::string(model.names[i]));
 
     a=(CAST_TO_VECTOR_XD(CAST_TO_VECTOR_XD q.col(i-1)).array()).cos();
-    b=((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<builder::eigen_vectorXd_t>)(builder::cast) q.col(i-1)).array()).sin();
+    b=(CAST_TO_VECTOR_XD(CAST_TO_VECTOR_XD q.col(i-1)).array()).sin();
 
     if (jtype == 'R') {
       if (axis == 'X') {
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(0))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(7) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(8) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(13) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(14) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(0))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(7) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(8) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(13) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(14) = a;
         // not smart but doing nonetheless for symmetric E
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(21))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(28) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(29) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(34) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(35) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(21))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(28) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(29) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(34) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(35) = a;
 
         prop_X_J[flattened_joint_idx(i, 0)] = 1;
         prop_X_J[flattened_joint_idx(i, 21)] = 1;
@@ -297,17 +292,17 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
         prop_X_J[flattened_joint_idx(i, 35)] = 2;
       } 
       else if (axis == 'Y') {
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(7))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(0) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(2) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(12) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(14) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(7))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(0) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(2) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(12) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(14) = a;
         // not smart but doing nonetheless for symm E
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(28))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(21) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(23) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(33) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(35) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX  X_J[i]).col(28))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(21) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(23) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(33) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(35) = a;
 
         prop_X_J[flattened_joint_idx(i, 7)] = 1;
         prop_X_J[flattened_joint_idx(i, 28)] = 1;
@@ -322,17 +317,17 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
         prop_X_J[flattened_joint_idx(i, 35)] = 2;
       } 
       else if (axis == 'Z') {
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(14))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(0) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(1) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(6) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(7) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(14))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(0) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(1) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(6) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(7) = a;
         // not smart but doing nonetheless for symm E
-        ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(35))=c;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(21) = a;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(22) = -b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(27) = b;
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(28) = a;
+        (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX  X_J[i]).col(35))=c;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(21) = a;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(22) = -b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(27) = b;
+        (CAST_TO_EIGEN_MATRIX X_J[i]).col(28) = a;
 
         prop_X_J[flattened_joint_idx(i, 14)] = 1;
         prop_X_J[flattened_joint_idx(i, 35)] = 1;
@@ -351,34 +346,34 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
     else if (jtype == 'P') {
       // negative r-cross, opp signs of featherstone 2.23
       if (axis == 'X') {
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(8) = -(q.col(i-1));
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(13) = (q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(8) = -(q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(13) = (q.col(i-1));
 
         prop_X_J[flattened_joint_idx(i, 8)] = 2;
         prop_X_J[flattened_joint_idx(i, 13)] = 2;
       }
       else if (axis == 'Y') {
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(2) = (q.col(i-1));
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(12) = -(q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(2) = (q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(12) = -(q.col(i-1));
 
         prop_X_J[flattened_joint_idx(i, 2)] = 2;
         prop_X_J[flattened_joint_idx(i, 12)] = 2;
       }
       else if (axis == 'Z') {
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(1) = -(q.col(i-1));
-        ((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i]).col(6) = (q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(1) = -(q.col(i-1));
+        (CAST_TO_EIGEN_MATRIX  X_J[i]).col(6) = (q.col(i-1));
 
         prop_X_J[flattened_joint_idx(i, 1)] = 2;
         prop_X_J[flattened_joint_idx(i, 6)] = 2;
       }
       // E = Identity 
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(0)).setConstant(1);
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(7)).setConstant(1);
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(14)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(0)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(7)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(14)).setConstant(1);
       // symm E
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(21)).setConstant(1);
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(28)).setConstant(1);
-      ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_J[i]).col(35)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(21)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(28)).setConstant(1);
+      (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_J[i]).col(35)).setConstant(1);
 
       prop_X_J[flattened_joint_idx(i, 0)] = 1;
       prop_X_J[flattened_joint_idx(i, 7)] = 1;
@@ -397,322 +392,95 @@ dyn_var<EigenMatrix<double>> fk(const Model &model, dyn_var<EigenMatrix<double>>
 
   i = 1;
   for (; i < (JointIndex)model.njoints; i = i+1) {
-    //(CAST_TO_EIGEN_MATRIX X_0[i]).setZero();
 
     builder::annotate(std::string(model.names[i]));
 
     static_var<int> l;
 
     generate_output_sparsity(prop_X_pi,prop_X_T,prop_X_J,i);
-
     static_var<int> sum;
-    sum=true;
 
     for(l=0;l<36;l=l+1){
-        if(prop_X_J[flattened_joint_idx(i, l%6)]==2 && prop_X_T[flattened_idx(i, l/6, 0)]==2){
-          X_pi.col(l)  =  X_T[i].coeffRef(l/6,0)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(0+l%6);
-          sum=false;
-        }
-        else if(prop_X_J[flattened_joint_idx(i, 0+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6, 0)]==2 ){
-          (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,0);
-          sum=false;
-        }
-        else if(prop_X_J[flattened_joint_idx(i, 0+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6, 0)]== 1 ){
-          X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(0+l%6);
-          sum=false;
-        }
-
+      //X_pi.setZero();
+      sum=true;
+      static_var<int> j;
+      for(j=0;j<6;j=j+1){
         if(sum==true){
-          if(prop_X_J[flattened_joint_idx(i, 6+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,1)]==2){
-            X_pi.col(l)  =  X_T[i].coeffRef(l/6,1)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(6+l%6);
+          if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,j)]==2){
+            X_pi.col(l)  =  X_T[i].coeffRef(l/6,j)*(CAST_TO_EIGEN_MATRIX X_J[i]).col(j*6+l%6);
             sum=false;
           }
-          else if(prop_X_J[flattened_joint_idx(i, 6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,1)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,1);
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,j)]==2 ){
+            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,j);
             sum=false;
           }
-          else if(prop_X_J[flattened_joint_idx(i, 6+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,1)]== 1 ){
-            X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(6+l%6);
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,j)]== 1 ){
+            X_pi.col(l)  = (CAST_TO_EIGEN_MATRIX X_J[i]).col(j*6+l%6);
+            sum=false;
+          }
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,j)]== 1 ){
+            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = 1;
             sum=false;
           }
         }
         else{
-          if(prop_X_J[flattened_joint_idx(i, 6+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,1)]==2){
-            X_pi.col(l) += X_T[i].coeffRef(l/6,1)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(6+l%6);
+          if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,j)]==2){
+            X_pi.col(l) += X_T[i].coeffRef(l/6,j)*(CAST_TO_EIGEN_MATRIX X_J[i]).col(j*6+l%6);
           }
-          else if(prop_X_J[flattened_joint_idx(i, 6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,1)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,1);
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,j)]==2 ){
+            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,j);
           }
-          else if(prop_X_J[flattened_joint_idx(i, 6+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,1)]== 1 ){
-            X_pi.col(l) +=(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(6+l%6);
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,j)]== 1 ){
+            X_pi.col(l) +=(CAST_TO_EIGEN_MATRIX X_J[i]).col(j*6+l%6);
           }
-        }
-
-        if(sum==true){
-          if(prop_X_J[flattened_joint_idx(i, 12+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,2)]==2){
-            X_pi.col(l)  =  X_T[i].coeffRef(l/6,2)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(12+l%6);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 12+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,2)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,2);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 12+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,2)]== 1 ){
-            X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(12+l%6);
-            sum=false;
+          else if(prop_X_J[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,j)]== 1 ){
+            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=1;
           }
         }
-        else{
-          if(prop_X_J[flattened_joint_idx(i, 12+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,2)]==2){
-            X_pi.col(l) += X_T[i].coeffRef(l/6,2)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(12+l%6);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 12+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,2)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,2);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 12+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,2)]== 1 ){
-            X_pi.col(l) +=(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(12+l%6);
-          }
-        }
-
-        if(sum==true){
-          if(prop_X_J[flattened_joint_idx(i, 18+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,3)]==2){
-            X_pi.col(l)  =  X_T[i].coeffRef(l/6,3)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(18+l%6);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 18+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,3)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,3);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 18+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,3)]== 1 ){
-            X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(18+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_J[flattened_joint_idx(i, 18+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,3)]==2){
-            X_pi.col(l) += X_T[i].coeffRef(l/6,3)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(18+l%6);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 18+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,3)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,3);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 18+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,3)]== 1 ){
-            X_pi.col(l) +=(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(18+l%6);
-          }
-        }
-        
-        if(sum==true){
-          if(prop_X_J[flattened_joint_idx(i, 24+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,4)]==2){
-            X_pi.col(l)  =  X_T[i].coeffRef(l/6,4)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(24+l%6);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 24+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,4)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,4);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 24+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,4)]== 1 ){
-            X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(24+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_J[flattened_joint_idx(i, 24+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,4)]==2){
-            X_pi.col(l) += X_T[i].coeffRef(l/6,4)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(24+l%6);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 24+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,4)]==2 ){
-            (CAST_TO_VECTOR_XD  X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,4);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 24+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,4)]== 1 ){
-            X_pi.col(l) +=(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(24+l%6);
-          }
-        }
-
-        if(sum==true){
-          if(prop_X_J[flattened_joint_idx(i, 30+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,5)]==2){
-            X_pi.col(l)  =  X_T[i].coeffRef(l/6,5)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(30+l%6);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 30+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,5)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array()  = X_T[i].coeffRef(l/6,5);
-            sum=false;
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 30+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,5)]== 1 ){
-            X_pi.col(l)  = (((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(30+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_J[flattened_joint_idx(i, 30+l%6)]==2 && prop_X_T[flattened_idx(i, l/6,5)]==2){
-            X_pi.col(l) += X_T[i].coeffRef(l/6,5)*(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(30+l%6);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 30+l%6)]== 1 && prop_X_T[flattened_idx(i, l/6,5)]==2 ){
-            (CAST_TO_VECTOR_XD X_pi.col(l)).array() +=X_T[i].coeffRef(l/6,5);
-          }
-          else if(prop_X_J[flattened_joint_idx(i, 30+l%6)]== 2 && prop_X_T[flattened_idx(i, l/6,5)]== 1 ){
-            X_pi.col(l) +=(((dyn_var<EigenMatrix<double>>)(builder::cast)X_J[i])).col(30+l%6);
-          }
-        }
-        
+      }
     }
 
     parent = model.parents[i];
     if (parent > 0) {
-      generate_output_sparsity_2(prop_X_0,prop_X_0,prop_X_pi,i,parent);
-      sum=true;
       for(l=0;l<36;l=l+1){
-        /*
-        (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  =  
-          ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(0+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(0+l%6)).array()
-        + ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(1+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(6+l%6)).array()
-        + ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(2+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(12+l%6)).array()
-        + ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(3+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(18+l%6)).array()
-        + ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(4+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(24+l%6)).array()
-        + ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(5+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(30+l%6)).array();
-        */
-       
-        if(prop_X_pi[flattened_joint_idx(i, 0+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 0+6*(l/6))]==2){
-          (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  =  ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(0+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(0+l%6)).array();
-          sum=false;
-        }
-        else if(prop_X_pi[flattened_joint_idx(i, 0+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 0+6*(l/6))]==2 ){
-          (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(0+6*(l/6));
-          sum=false;
-        }
-        else if(prop_X_pi[flattened_joint_idx(i, 0+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 0+6*(l/6))]== 1 ){
-          (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(0+l%6);
-          sum=false;
-        }
-
-        if(sum==true){
-          if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]==2){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  =  ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(1+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(6+l%6)).array();
-            sum=false;
+        sum=true;
+        static_var<int> j;
+        for(j=0;j<6;j=j+1){
+          if(sum==true){
+            if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]==2){
+              (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)  =  (CAST_TO_VECTOR_XD (CAST_TO_EIGEN_MATRIX X_0[parent]).col(j+6*(l/6))).array()*(CAST_TO_VECTOR_XD (X_pi).col(j*6+l%6)).array();
+              sum=false;
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]==2 ){
+              (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)  = (CAST_TO_EIGEN_MATRIX  X_0[parent]).col(j+6*(l/6));
+              sum=false;
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]== 1 ){
+              (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)  = (X_pi).col(j*6+l%6);
+              sum=false;
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]== 1 ){
+              (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)).array()  = 1;
+              sum=false;
+            }
           }
-          else if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(1+6*(l/6));
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(6+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]==2){
-            (CAST_TO_VECTOR_XD(((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)).array()  +=  ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(1+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(6+l%6)).array();
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(1+6*(l/6));
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 6+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 1+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += (X_pi).col(6+l%6);
+          else{
+            if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]==2){
+              (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)).array()  +=  (CAST_TO_VECTOR_XD(CAST_TO_EIGEN_MATRIX X_0[parent]).col(j+6*(l/6))).array()*(CAST_TO_VECTOR_XD (X_pi).col(j*6+l%6)).array();
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]==2 ){
+              (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)  += (CAST_TO_EIGEN_MATRIX X_0[parent]).col(j+6*(l/6));
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]== 1 ){
+              (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)  += (X_pi).col(j*6+l%6);
+            }
+            else if(prop_X_pi[flattened_joint_idx(i, j*6+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, j+6*(l/6))]== 1 ){
+              (CAST_TO_VECTOR_XD (CAST_TO_EIGEN_MATRIX  X_0[i]).col(l)).array()  += 1;
+            }
           }
         }
-
-        if(sum==true){
-          if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]==2){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(2+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(12+l%6)).array();
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(2+6*(l/6));
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(12+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]==2){
-            (CAST_TO_VECTOR_XD(((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)).array()  += ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(2+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(12+l%6)).array();
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(2+6*(l/6));
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 12+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 2+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += (X_pi).col(12+l%6);
-          }
-        }
-
-        if(sum==true){
-          if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]==2){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(3+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(18+l%6)).array();
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(3+6*(l/6));
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(18+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]==2){
-            (CAST_TO_VECTOR_XD(((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)).array()  += ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(3+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(18+l%6)).array();
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(3+6*(l/6));
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 18+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 3+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += (X_pi).col(18+l%6);
-          }
-        }
-        
-        if(sum==true){
-          if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]==2){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(4+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(24+l%6)).array();
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(4+6*(l/6));
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(24+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]==2){
-            (CAST_TO_VECTOR_XD(((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)).array()  += ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(4+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(24+l%6)).array();
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(4+6*(l/6));
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 24+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 4+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += (X_pi).col(24+l%6);
-          }
-        }
-
-        if(sum==true){
-          if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]==2){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  =  ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(5+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(30+l%6)).array();
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(5+6*(l/6));
-            sum=false;
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  = (X_pi).col(30+l%6);
-            sum=false;
-          }
-        }
-        else{
-          if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]==2 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]==2){
-            (CAST_TO_VECTOR_XD(((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)).array()  +=  ((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(5+6*(l/6))).array()*((dyn_var<builder::eigen_vectorXd_t>)(builder::cast)(X_pi).col(30+l%6)).array();
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]== 1 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]==2 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += ((dyn_var<EigenMatrix<double>>)(builder::cast) X_0[parent]).col(5+6*(l/6));
-          }
-          else if(prop_X_pi[flattened_joint_idx(i, 30+l%6)]== 2 && prop_X_0[flattened_joint_idx(parent, 5+6*(l/6))]== 1 ){
-            (((dyn_var<EigenMatrix<double>>)(builder::cast)X_0[i])).col(l)  += (X_pi).col(30+l%6);
-          }
-        }
-      
       }
+      generate_output_sparsity_2(prop_X_0,prop_X_0,prop_X_pi,i,parent);
     }
     else {
       copy_sparsity(prop_X_0,prop_X_pi,i);
