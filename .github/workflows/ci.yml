@@ -23,7 +23,7 @@ jobs:
 
       # Build the project
       - name: Build Project
-        run: make -C {{github.workspace }} -j$(nproc)
+        run: make -C {{ github.workspace }} -j$(nproc)
 
       ## Run sample10
       #- name: Run sample10
