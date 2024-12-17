@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
   Eigen::Matrix<double, 6, 6> us_X2 = ctup_gen::fk(q);
 
   if (us_X2.isApprox(X2, 1e-5))
-    return 1;
-  else
     return 0;
+  else
+    return 1;
 }
