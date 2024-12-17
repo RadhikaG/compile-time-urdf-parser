@@ -1,15 +1,15 @@
 #ifndef XFORM_IMPL_H
 #define XFORM_IMPL_H
+#include "backend.h"
 #include "builder/builder_base.h"
+#include "builder/dyn_var.h"
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
-#include "builder/dyn_var.h"
 #include <unordered_map>
 #include <vector>
-#include "backend.h"
 
-#include <sstream>
 #include <cassert>
+#include <sstream>
 // Use (void) to silence unused warnings.
 #define assertm(exp, msg) assert(((void)msg, exp))
 
@@ -19,11 +19,11 @@ using builder::static_var;
 namespace ctup {
 
 enum Sparsity_type_id {
-    DENSE,
-    SPARSE_UNROLLED,
-    //SPARSE_BLOCKED,
-    //SPARSE_MATRIX,
-    //SKEW_SYMM,
+  DENSE,
+  SPARSE_UNROLLED,
+  //SPARSE_BLOCKED,
+  //SPARSE_MATRIX,
+  //SKEW_SYMM,
 };
 
 // todo: conditionally generate backend statements using hw features later
@@ -36,28 +36,34 @@ struct Flags {
   enum {
     AVX2,
     AVX512,
-    NEON
+    NEON,
   } simd_type_id;
 
-  Flags(Sparsity_type_id _sparsity_type_id=DENSE, 
-          bool _simplify_zero=true) : 
-      simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id) {}
+  Flags(Sparsity_type_id _sparsity_type_id = DENSE, bool _simplify_zero = true)
+      : simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id) {}
 };
 // only one of this through ctup for now
-static Flags flags(
-        DENSE, // sparsity_type_id
-        true             // simplify_zero
+static Flags flags(DENSE, // sparsity_type_id
+                   true   // simplify_zero
 );
 
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix_expr {
-  virtual const builder::builder get_value() const { return dyn_var<EigenMatrix<Scalar>>(); }
-  virtual const builder::builder get_value_at(size_t i, size_t j) const { return dyn_var<int>(); }
-  virtual int is_nonzero(size_t i, size_t j) const { return false; }
-  virtual const std::vector<size_t> get_expr_shape(void) const { return std::vector<size_t>{}; }
+  virtual const builder::builder get_value() const {
+    return dyn_var<EigenMatrix<Scalar>>();
+  }
+  virtual const builder::builder get_value_at(size_t i, size_t j) const {
+    return dyn_var<int>();
+  }
+  virtual int is_nonzero(size_t i, size_t j) const {
+    return false;
+  }
+  virtual const std::vector<size_t> get_expr_shape(void) const {
+    return std::vector<size_t>{};
+  }
 };
 
-// Design intentions: 
+// Design intentions:
 // * Abstract away matrix representation from matrix types (Rotation, Translation,
 // Xform, etc.)
 // * Users only construct expressions of matrices, assign matrix entries, and
@@ -69,22 +75,22 @@ struct Matrix_expr {
 // * Storage should be the only place we directly generate
 // backend/runtime matrix/unrolled variable statements from.
 // todo: Storage class needs much more work.
-template<typename Scalar>
+template <typename Scalar>
 struct Storage {
 private:
   // SparseEntry should be inaccessible from outside Storage
   struct SparseEntry {
-    dyn_var<Scalar> dyn_entry;// = builder::defer_init();
+    dyn_var<Scalar> dyn_entry; // = builder::defer_init();
     static_var<Scalar> static_entry;
     static_var<int> is_constant;
-  
+
     SparseEntry() : static_entry(0), is_constant(true) {}
-  
+
     void operator=(Scalar val) {
       is_constant = true;
       static_entry = val;
     }
-  
+
     void operator=(const dyn_var<Scalar> &val) {
       is_constant = false;
       dyn_entry = val;
@@ -96,7 +102,7 @@ public:
   const size_t n_cols;
 
   // for dense
-  dyn_var<EigenMatrix<Scalar>> m_matrix;// = builder::defer_init();
+  dyn_var<EigenMatrix<Scalar>> m_matrix; // = builder::defer_init();
 
   // for sparse unrolled
   std::vector<SparseEntry> sparse_vars;
@@ -122,10 +128,10 @@ public:
     VARIABLE,
   } sparse_entry_type_id;
 
-  Storage(size_t _n_rows, size_t _n_cols, 
-          Sparsity_type_id _sti = flags.sparsity_type_id, Storage_order_id _soi = COL_MAJ) : 
-          n_rows(_n_rows), n_cols(_n_cols), m_matrix(n_rows, n_cols),
-          sparsity_type_id(_sti), storage_order_id(_soi) {
+  Storage(size_t _n_rows, size_t _n_cols, Sparsity_type_id _sti = flags.sparsity_type_id,
+          Storage_order_id _soi = COL_MAJ)
+      : n_rows(_n_rows), n_cols(_n_cols), m_matrix(n_rows, n_cols), sparsity_type_id(_sti),
+        storage_order_id(_soi) {
     if (sparsity_type_id == SPARSE_UNROLLED) {
       // set all matrix entries as non constant in the beginning
       sparse_vars.resize(n_rows * n_cols);
@@ -137,7 +143,8 @@ public:
 
   std::string append_idx_error_msg(std::string error_msg, size_t i, size_t j) const {
     auto err_stream = std::stringstream{};
-    err_stream << error_msg << ": " << "(" << i << "," << j << ")";
+    err_stream << error_msg << ": "
+               << "(" << i << "," << j << ")";
     return err_stream.str();
   }
 
@@ -150,7 +157,7 @@ public:
       // i is row-idx, j is col-idx
       flattened = i * n_cols + j;
 
-    const char * error_msg = append_idx_error_msg("index out of bounds", i, j).c_str();
+    const char *error_msg = append_idx_error_msg("index out of bounds", i, j).c_str();
     assertm(flattened < n_rows * n_cols, error_msg);
 
     return flattened;
@@ -159,7 +166,7 @@ public:
   size_t get_dense_to_sparse_idx(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
-    const char * error_msg = append_idx_error_msg("no sparse entry found for", i, j).c_str();
+    const char *error_msg = append_idx_error_msg("no sparse entry found for", i, j).c_str();
     assertm(is_nonzero(i, j), error_msg);
 
     return dense_to_sparse_idx.find(flattened_idx)->second;
@@ -169,12 +176,15 @@ public:
     size_t flattened_idx = get_flattened_index(i, j);
 
     if (sparsity_type_id == DENSE) {
-      return const_cast<dyn_var<EigenMatrix<Scalar>>&>(m_matrix).coeffRef(i, j);
+      return const_cast<dyn_var<EigenMatrix<Scalar>> &>(m_matrix).coeffRef(i, j);
     }
     if (sparsity_type_id == SPARSE_UNROLLED) {
       const SparseEntry &e = sparse_vars[flattened_idx];
       if (e.is_constant) {
-        const char * error_msg = append_idx_error_msg("can't retrieve constant entries using (i, j), use get_constant_entry", i, j).c_str();
+        const char *error_msg =
+            append_idx_error_msg(
+                "can't retrieve constant entries using (i, j), use get_constant_entry", i, j)
+                .c_str();
         assertm(false, error_msg);
       }
       return e.dyn_entry;
@@ -220,8 +230,8 @@ public:
       dyn_var<EigenMatrix<Scalar>> converted_mat(n_rows, n_cols);
 
       converted_mat.setZero();
-      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
-        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+      for (static_var<size_t> i = 0; i < n_rows; i = i + 1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j + 1) {
           converted_mat.coeffRef(i, j) = get_entry(i, j);
         }
       }
@@ -238,7 +248,7 @@ public:
 
   Scalar get_constant_entry(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
-    
+
     if (sparsity_type_id == DENSE)
       assertm(false, "no constant tracking for DENSE matrices");
     else if (sparsity_type_id == SPARSE_UNROLLED) {
@@ -259,7 +269,7 @@ public:
       if (std::abs(val) < 1e-5)
         val = 0;
     }
-    
+
     if (sparsity_type_id == DENSE) {
       m_matrix.coeffRef(i, j) = val;
     }
@@ -273,7 +283,7 @@ public:
 
   void set_entry_to_dyn(size_t i, size_t j, const dyn_var<Scalar> &val) {
     size_t flattened_idx = get_flattened_index(i, j);
-    
+
     if (sparsity_type_id == DENSE) {
       m_matrix.coeffRef(i, j) = val;
     }
@@ -305,7 +315,7 @@ public:
     assertm(false, "constants are untracked for this sparsity type");
     return false;
   }
-  
+
   int is_zero(size_t i, size_t j) const {
     size_t flattened_idx = get_flattened_index(i, j);
 
@@ -325,10 +335,9 @@ public:
   int is_nonzero(size_t i, size_t j) const {
     return !is_zero(i, j);
   }
-
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Translation_expr : public Matrix_expr<Scalar> {
   virtual const builder::builder get_value() const override {
     dyn_var<EigenMatrix<Scalar>> translation_mat(3, 3);
@@ -376,15 +385,29 @@ struct Translation_expr : public Matrix_expr<Scalar> {
     return false;
   }
 
-  virtual const builder::builder get_x() const { return dyn_var<int>(); }
-  virtual const builder::builder get_y() const { return dyn_var<int>(); }
-  virtual const builder::builder get_z() const { return dyn_var<int>(); }
+  virtual const builder::builder get_x() const {
+    return dyn_var<int>();
+  }
+  virtual const builder::builder get_y() const {
+    return dyn_var<int>();
+  }
+  virtual const builder::builder get_z() const {
+    return dyn_var<int>();
+  }
 
-  virtual const std::vector<size_t> get_expr_shape(void) const override { return std::vector<size_t>({3, 3}); }
+  virtual const std::vector<size_t> get_expr_shape(void) const override {
+    return std::vector<size_t>({3, 3});
+  }
 
-  virtual int has_x() const { return false; }
-  virtual int has_y() const { return false; }
-  virtual int has_z() const { return false; }
+  virtual int has_x() const {
+    return false;
+  }
+  virtual int has_y() const {
+    return false;
+  }
+  virtual int has_z() const {
+    return false;
+  }
 };
 
 //template<typename Scalar>
@@ -397,7 +420,7 @@ struct Translation_expr : public Matrix_expr<Scalar> {
 //  virtual int has_z() const { return false; }
 //};
 
-template<typename Scalar>
+template <typename Scalar>
 struct Xform_expr : public Matrix_expr<Scalar> {
   virtual const builder::builder get_value() const override {
     dyn_var<EigenMatrix<Scalar>> X_mat(6, 6);
@@ -410,7 +433,7 @@ struct Xform_expr : public Matrix_expr<Scalar> {
     return X_mat;
   }
 
-  virtual const builder::builder get_value_at(size_t i, size_t j) const override { 
+  virtual const builder::builder get_value_at(size_t i, size_t j) const override {
     // X matrix dense repr:
     // -Erx = -rot * cross(trans)
     // [ rot  0 ]
@@ -421,12 +444,12 @@ struct Xform_expr : public Matrix_expr<Scalar> {
     }
     else if (i >= 3 && j >= 3) {
       // rotation part
-      return get_rotation_expr().get_value_at(i-3, j-3);
+      return get_rotation_expr().get_value_at(i - 3, j - 3);
     }
     else if (i >= 3 && j < 3) {
       // -Erx
       // we need to compute matmul entry for -Erx
-      return get_minus_E_rcross_expr().get_value_at(i-3, j);
+      return get_minus_E_rcross_expr().get_value_at(i - 3, j);
     }
     else {
       return 0;
@@ -440,33 +463,44 @@ struct Xform_expr : public Matrix_expr<Scalar> {
     }
     else if (i >= 3 && j >= 3) {
       // rotation part
-      return get_rotation_expr().is_nonzero(i-3, j-3);
+      return get_rotation_expr().is_nonzero(i - 3, j - 3);
     }
     else if (i >= 3 && j < 3) {
       // -Erx
-      return get_minus_E_rcross_expr().is_nonzero(i-3, j);
+      return get_minus_E_rcross_expr().is_nonzero(i - 3, j);
     }
     else {
       return false;
     }
   }
 
-  virtual const std::vector<size_t> get_expr_shape(void) const override { return std::vector<size_t>({6, 6}); }
+  virtual const std::vector<size_t> get_expr_shape(void) const override {
+    return std::vector<size_t>({6, 6});
+  }
 
-  virtual const Matrix_expr<Scalar>& get_rotation_expr() const { return *new Matrix_expr<Scalar>(); }
-  virtual const Translation_expr<Scalar>& get_translation_expr() const { return *new Translation_expr<Scalar>(); }
-  virtual const Matrix_expr<Scalar>& get_minus_E_rcross_expr() const { return *new Matrix_expr<Scalar>(); }
+  virtual const Matrix_expr<Scalar> &get_rotation_expr() const {
+    return *new Matrix_expr<Scalar>();
+  }
+  virtual const Translation_expr<Scalar> &get_translation_expr() const {
+    return *new Translation_expr<Scalar>();
+  }
+  virtual const Matrix_expr<Scalar> &get_minus_E_rcross_expr() const {
+    return *new Matrix_expr<Scalar>();
+  }
 
-  virtual int has_rotation() const { return 0; }
-  virtual int has_translation() const { return 0; }
+  virtual int has_rotation() const {
+    return 0;
+  }
+  virtual int has_translation() const {
+    return 0;
+  }
 };
 
 // fwd decl
-template<typename Scalar>
+template <typename Scalar>
 struct Xform_expr_leaf;
 
-
-template<typename Scalar>
+template <typename Scalar>
 struct Translation {
 private:
   // marked private because we want to make sure we track sparsity whenever
@@ -563,7 +597,7 @@ public:
       z = q_i;
   }
 
-  void operator= (const Translation_expr<Scalar> &rhs) {
+  void operator=(const Translation_expr<Scalar> &rhs) {
     if (rhs.has_x()) {
       has_x = true;
       x = rhs.get_x();
@@ -579,25 +613,23 @@ public:
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix {
   Storage<Scalar> storage;
   const size_t n_rows;
   const size_t n_cols;
 
-  Matrix(size_t _n_rows, size_t _n_cols, 
-          Sparsity_type_id _sti=flags.sparsity_type_id, 
-          typename Storage<Scalar>::Storage_order_id _soi=Storage<Scalar>::COL_MAJ) :
-    storage(_n_rows, _n_cols, _sti, _soi), n_rows(_n_rows), n_cols(_n_cols) 
-    {}
+  Matrix(size_t _n_rows, size_t _n_cols, Sparsity_type_id _sti = flags.sparsity_type_id,
+         typename Storage<Scalar>::Storage_order_id _soi = Storage<Scalar>::COL_MAJ)
+      : storage(_n_rows, _n_cols, _sti, _soi), n_rows(_n_rows), n_cols(_n_cols) {}
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) {
     storage.set_entry_to_constant(i, j, val);
   }
 
   void set_identity() {
-    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
-      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+    for (static_var<size_t> i = 0; i < n_rows; i = i + 1) {
+      for (static_var<size_t> j = 0; j < n_cols; j = j + 1) {
         if (i == j)
           set_entry_to_constant(i, j, 1);
         else
@@ -606,7 +638,7 @@ struct Matrix {
     }
   }
 
-  void operator= (const Matrix_expr<Scalar> &rhs) {
+  void operator=(const Matrix_expr<Scalar> &rhs) {
     if (storage.sparsity_type_id == SPARSE_UNROLLED) {
       for (static_var<size_t> i = 0; i < n_rows; i = i + 1) {
         for (static_var<size_t> j = 0; j < n_cols; j = j + 1) {
@@ -629,7 +661,7 @@ struct Matrix {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Rotation : public Matrix<Scalar> {
   using Matrix<Scalar>::storage;
 
@@ -641,8 +673,8 @@ struct Rotation : public Matrix<Scalar> {
   static_var<int> has_y;
   static_var<int> has_z;
 
-  Rotation() : Matrix<Scalar>(3, 3),
-    is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
+  Rotation()
+      : Matrix<Scalar>(3, 3), is_joint_xform(false), has_x(false), has_y(false), has_z(false) {
     Matrix<Scalar>::set_identity();
   }
 
@@ -702,7 +734,7 @@ struct Rotation : public Matrix<Scalar> {
   using Matrix<Scalar>::operator=;
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Xform {
   Rotation<Scalar> rot;
   Translation<Scalar> trans;
@@ -739,10 +771,10 @@ struct Xform {
       trans.jcalc(q_i);
     }
     // todo: trans should be trans-cross, do later
-    minus_E_rcross = - rot * trans;
+    minus_E_rcross = -rot * trans;
   }
 
-  void operator= (const Xform_expr<Scalar> &rhs) {
+  void operator=(const Xform_expr<Scalar> &rhs) {
     if (rhs.has_rotation()) {
       has_rotation = true;
       rot = rhs.get_rotation_expr();
@@ -753,26 +785,25 @@ struct Xform {
     }
   }
 
-  void operator= (const Xform<Scalar> &xform) {
+  void operator=(const Xform<Scalar> &xform) {
     *this = Xform_expr_leaf<Scalar>(xform);
   }
 };
 
 // Expressions
 
-
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
-  const struct Matrix<Scalar>& m_mat;
+  const struct Matrix<Scalar> &m_mat;
   std::vector<size_t> expr_shape;
 
-  Matrix_expr_leaf(const struct Matrix<Scalar>& mat) : m_mat(mat) {
+  Matrix_expr_leaf(const struct Matrix<Scalar> &mat) : m_mat(mat) {
     expr_shape.push_back(m_mat.n_rows);
     expr_shape.push_back(m_mat.n_cols);
   }
 
   const builder::builder get_value() const override {
-    return m_mat.storage.denseify(); 
+    return m_mat.storage.denseify();
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
@@ -788,14 +819,13 @@ struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar>& expr1;
+  const struct Matrix_expr<Scalar> &expr1;
 
   std::vector<size_t> expr_shape;
 
-  Matrix_expr_unary_minus(const struct Matrix_expr<Scalar>& expr1) :
-    expr1(expr1) {
+  Matrix_expr_unary_minus(const struct Matrix_expr<Scalar> &expr1) : expr1(expr1) {
     expr_shape = expr1.get_expr_shape();
   }
 
@@ -804,7 +834,7 @@ struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
   }
 
   const builder::builder get_value() const override {
-    return -expr1.get_value(); 
+    return -expr1.get_value();
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
@@ -816,15 +846,15 @@ struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix_expr_add : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar>& expr1;
-  const struct Matrix_expr<Scalar>& expr2;
+  const struct Matrix_expr<Scalar> &expr1;
+  const struct Matrix_expr<Scalar> &expr2;
 
   std::vector<size_t> expr_shape;
 
-  Matrix_expr_add(const struct Matrix_expr<Scalar>& expr1, const struct Matrix_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {
+  Matrix_expr_add(const struct Matrix_expr<Scalar> &expr1, const struct Matrix_expr<Scalar> &expr2)
+      : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1 = expr1.get_expr_shape();
     std::vector<size_t> shape2 = expr2.get_expr_shape();
     assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
@@ -837,11 +867,11 @@ struct Matrix_expr_add : public Matrix_expr<Scalar> {
   }
 
   const builder::builder get_value() const override {
-    return expr1.get_value() + expr2.get_value(); 
+    return expr1.get_value() + expr2.get_value();
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
-    return expr1.get_value_at(i, j) + expr2.get_value_at(i, j); 
+    return expr1.get_value_at(i, j) + expr2.get_value_at(i, j);
   }
 
   int is_nonzero(size_t i, size_t j) const override {
@@ -849,15 +879,15 @@ struct Matrix_expr_add : public Matrix_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Matrix_expr_mul : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar>& expr1;
-  const struct Matrix_expr<Scalar>& expr2;
+  const struct Matrix_expr<Scalar> &expr1;
+  const struct Matrix_expr<Scalar> &expr2;
 
   std::vector<size_t> expr_shape;
 
-  Matrix_expr_mul(const struct Matrix_expr<Scalar>& expr1, const struct Matrix_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {
+  Matrix_expr_mul(const struct Matrix_expr<Scalar> &expr1, const struct Matrix_expr<Scalar> &expr2)
+      : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1 = expr1.get_expr_shape();
     std::vector<size_t> shape2 = expr2.get_expr_shape();
     assertm(shape1[1] == shape2[0], "inner dim of matmul expr must match");
@@ -870,7 +900,7 @@ struct Matrix_expr_mul : public Matrix_expr<Scalar> {
   }
 
   const builder::builder get_value() const override {
-    return expr1.get_value() * expr2.get_value(); 
+    return expr1.get_value() * expr2.get_value();
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
@@ -878,7 +908,7 @@ struct Matrix_expr_mul : public Matrix_expr<Scalar> {
     dyn_var<Scalar> sum = 0;
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j); 
+      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
     }
     return sum;
   }
@@ -895,11 +925,11 @@ struct Matrix_expr_mul : public Matrix_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Translation_expr_leaf : public Translation_expr<Scalar> {
-  const struct Translation<Scalar>& m_trans;
+  const struct Translation<Scalar> &m_trans;
 
-  Translation_expr_leaf(const struct Translation<Scalar>& trans) : m_trans(trans) {}
+  Translation_expr_leaf(const struct Translation<Scalar> &trans) : m_trans(trans) {}
 
   const builder::builder get_x() const override {
     return m_trans.get_x();
@@ -922,13 +952,14 @@ struct Translation_expr_leaf : public Translation_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Translation_expr_add : public Translation_expr<Scalar> {
-  const struct Translation_expr<Scalar>& expr1;
-  const struct Translation_expr<Scalar>& expr2;
+  const struct Translation_expr<Scalar> &expr1;
+  const struct Translation_expr<Scalar> &expr2;
 
-  Translation_expr_add(const struct Translation_expr<Scalar>& expr1, const struct Translation_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {}
+  Translation_expr_add(const struct Translation_expr<Scalar> &expr1,
+                       const struct Translation_expr<Scalar> &expr2)
+      : expr1(expr1), expr2(expr2) {}
 
   const builder::builder get_x() const override {
     return expr1.get_x() + expr2.get_x();
@@ -991,7 +1022,7 @@ struct Translation_expr_add : public Translation_expr<Scalar> {
 //    dyn_var<Scalar> sum = 0;
 //    // k is inner_dim for matmul
 //    for (static_var<size_t> k = 0; k < 3; k = k + 1) {
-//      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j); 
+//      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
 //    }
 //    return sum;
 //  }
@@ -1017,19 +1048,19 @@ struct Translation_expr_add : public Translation_expr<Scalar> {
 //  }
 //};
 
-template<typename Scalar>
+template <typename Scalar>
 struct Xform_expr_leaf : public Xform_expr<Scalar> {
-  const struct Xform<Scalar>& m_xform;
+  const struct Xform<Scalar> &m_xform;
 
-  Xform_expr_leaf(const struct Xform<Scalar>& xform) : m_xform(xform) {}
+  Xform_expr_leaf(const struct Xform<Scalar> &xform) : m_xform(xform) {}
 
-  const Matrix_expr<Scalar>& get_rotation_expr() const override {
+  const Matrix_expr<Scalar> &get_rotation_expr() const override {
     return *new Matrix_expr_leaf<Scalar>(m_xform.rot);
   }
-  const Translation_expr<Scalar>& get_translation_expr() const override {
+  const Translation_expr<Scalar> &get_translation_expr() const override {
     return *new Translation_expr_leaf<Scalar>(m_xform.trans);
   }
-  const Matrix_expr<Scalar>& get_minus_E_rcross_expr() const override {
+  const Matrix_expr<Scalar> &get_minus_E_rcross_expr() const override {
     return *new Matrix_expr_leaf<Scalar>(m_xform.minus_E_rcross);
   }
 
@@ -1041,31 +1072,30 @@ struct Xform_expr_leaf : public Xform_expr<Scalar> {
   }
 };
 
-template<typename Scalar>
+template <typename Scalar>
 struct Xform_expr_mul : public Xform_expr<Scalar> {
-  const struct Xform_expr<Scalar>& expr1;
-  const struct Xform_expr<Scalar>& expr2;
+  const struct Xform_expr<Scalar> &expr1;
+  const struct Xform_expr<Scalar> &expr2;
 
-  Xform_expr_mul(const struct Xform_expr<Scalar>& expr1, const struct Xform_expr<Scalar>& expr2) :
-    expr1(expr1), expr2(expr2) {}
+  Xform_expr_mul(const struct Xform_expr<Scalar> &expr1, const struct Xform_expr<Scalar> &expr2)
+      : expr1(expr1), expr2(expr2) {}
 
-  const Matrix_expr<Scalar>& get_rotation_expr() const override {
+  const Matrix_expr<Scalar> &get_rotation_expr() const override {
     return expr1.get_rotation_expr() * expr2.get_rotation_expr();
   }
-  const Matrix_expr<Scalar>& get_minus_E_rcross_expr() const override {
+  const Matrix_expr<Scalar> &get_minus_E_rcross_expr() const override {
     return expr1.get_minus_E_rcross_expr() * expr2.get_rotation_expr() +
-        expr1.get_rotation_expr() * expr2.get_minus_E_rcross_expr();
+           expr1.get_rotation_expr() * expr2.get_minus_E_rcross_expr();
   }
 
   int has_rotation() const override {
-    return expr1.has_rotation() || expr2.has_rotation();    
+    return expr1.has_rotation() || expr2.has_rotation();
   }
   int has_translation() const override {
-    return expr1.has_translation() || expr2.has_translation();    
+    return expr1.has_translation() || expr2.has_translation();
   }
 };
 
-
-}
+} // namespace ctup
 
 #endif

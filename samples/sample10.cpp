@@ -95,6 +95,7 @@ int main(int argc, char* argv[]) {
   std::ofstream of(header_filename);
   block::c_code_generator codegen(of);
 
+  of << "// clang-format off\n\n";
   of << "#include \"Eigen/Dense\"\n\n";
   of << "#include <iostream>\n\n";
   of << "namespace ctup_gen {\n\n";

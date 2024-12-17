@@ -1,14 +1,16 @@
 #include "Eigen/Dense"
-#include <iostream>
 #include "fk_gen.h"
+#include <iostream>
 
 const size_t N_X_T = 3;
 
+// clang-format off
 const double data[N_X_T][36] = {
   {1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.686,0,1,0,0,-0.686,0,0.06,0,1,0,0,-0.06,0,0,0,1},
   {0.707105,0.707108,0,0,0,0,-0.707108,0.707105,0,0,0,0,0,0,1,0,0,0,-0.0916596,0.0916593,-0.137886,0.707105,0.707108,0,-0.0916593,-0.0916596,0.228434,-0.707108,0.707105,0,0.259027,-0.0640272,0,0,0,1},
   {1,0,0,0,0,0,0,4.89664e-12,-1,0,0,0,0,1,4.89664e-12,0,0,0,0,0.27035,0,1,0,0,-1.32381e-12,0.069,3.37868e-13,0,4.89664e-12,-1,-0.27035,-3.37868e-13,0.069,0,1,4.89664e-12}
 };
+// clang-format on
 
 static void set_X_T(Eigen::Matrix<double, 6, 6> X_T[]) {
   size_t r, c;
@@ -28,11 +30,12 @@ static void set_X_T(Eigen::Matrix<double, 6, 6> X_T[]) {
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   Eigen::Matrix<double, 6, 6> X_T[N_X_T];
 
   Eigen::Matrix<double, 6, 6> X1, X2;
-  X1.setZero(); X2.setZero();
+  X1.setZero();
+  X2.setZero();
 
   set_X_T(X_T);
 
@@ -41,7 +44,8 @@ int main(int argc, char* argv[]) {
   q.coeffRef(1) = 0.3;
 
   Eigen::Matrix3d E, rcross, minus_E_rcross;
-  E.setZero(); rcross.setZero(), minus_E_rcross.setZero();
+  E.setZero();
+  rcross.setZero(), minus_E_rcross.setZero();
 
   double cosq = cos(q(1));
   double sinq = sin(q(1));

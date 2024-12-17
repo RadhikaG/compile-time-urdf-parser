@@ -18,7 +18,7 @@ template <typename Scalar>
 struct is_acceptable_rhs_xform<Xform<Scalar>> {
   static const bool value = true;
   using scalar_type = Scalar;
-  static const Xform_expr<Scalar>& cast(const Xform<Scalar>& v) {
+  static const Xform_expr<Scalar> &cast(const Xform<Scalar> &v) {
     return *new Xform_expr_leaf<Scalar>(v);
   }
 };
@@ -26,20 +26,19 @@ template <typename Scalar>
 struct is_acceptable_rhs_xform<Xform_expr<Scalar>> {
   static const bool value = true;
   using scalar_type = Scalar;
-  static const Xform_expr<Scalar>& cast(const Xform_expr<Scalar>& v) {
+  static const Xform_expr<Scalar> &cast(const Xform_expr<Scalar> &v) {
     return v;
   }
 };
 
-template<typename E1, typename E2>
+template <typename E1, typename E2>
 // sets return type to Xform_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_xform<E2>::value, 
-         const Xform_expr<typename is_acceptable_rhs_xform<E1>::scalar_type>&>::type
+typename std::enable_if<is_acceptable_rhs_xform<E2>::value,
+                        const Xform_expr<typename is_acceptable_rhs_xform<E1>::scalar_type> &>::type
 // ...for xform * xform
-operator * (const E1& v1, const E2& v2) {
+operator*(const E1 &v1, const E2 &v2) {
   return *new Xform_expr_mul<typename is_acceptable_rhs_xform<E1>::scalar_type>(
-          is_acceptable_rhs_xform<E1>::cast(v1),
-          is_acceptable_rhs_xform<E2>::cast(v2));
+      is_acceptable_rhs_xform<E1>::cast(v1), is_acceptable_rhs_xform<E2>::cast(v2));
 }
 
 /*** Translation expressions **/
@@ -53,7 +52,7 @@ template <typename Scalar>
 struct is_acceptable_rhs_translation<Translation<Scalar>> {
   static const bool value = true;
   using scalar_type = Scalar;
-  static const Translation_expr<Scalar>& cast(const Translation<Scalar>& v) {
+  static const Translation_expr<Scalar> &cast(const Translation<Scalar> &v) {
     return *new Translation_expr_leaf<Scalar>(v);
   }
 };
@@ -61,20 +60,20 @@ template <typename Scalar>
 struct is_acceptable_rhs_translation<Translation_expr<Scalar>> {
   static const bool value = true;
   using scalar_type = Scalar;
-  static const Translation_expr<Scalar>& cast(const Translation_expr<Scalar>& v) {
+  static const Translation_expr<Scalar> &cast(const Translation_expr<Scalar> &v) {
     return v;
   }
 };
 
-template<typename E1, typename E2>
+template <typename E1, typename E2>
 // sets return type to Translation_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_translation<E2>::value, 
-         const Translation_expr<typename is_acceptable_rhs_translation<E1>::scalar_type>&>::type
+typename std::enable_if<
+    is_acceptable_rhs_translation<E2>::value,
+    const Translation_expr<typename is_acceptable_rhs_translation<E1>::scalar_type> &>::type
 // ...for translation + translation
-operator + (const E1& v1, const E2& v2) {
+operator+(const E1 &v1, const E2 &v2) {
   return *new Translation_expr_add<typename is_acceptable_rhs_translation<E1>::scalar_type>(
-          is_acceptable_rhs_translation<E1>::cast(v1),
-          is_acceptable_rhs_translation<E2>::cast(v2));
+      is_acceptable_rhs_translation<E1>::cast(v1), is_acceptable_rhs_translation<E2>::cast(v2));
 }
 
 /*** Rotation expressions **/
@@ -103,7 +102,7 @@ operator + (const E1& v1, const E2& v2) {
 //
 //template<typename E1, typename E2>
 //// sets return type to Rotation_expr<Scalar>...
-//typename std::enable_if<is_acceptable_rhs_rotation<E2>::value, 
+//typename std::enable_if<is_acceptable_rhs_rotation<E2>::value,
 //         const Rotation_expr<typename is_acceptable_rhs_rotation<E1>::scalar_type>&>::type
 //// ...for rotation * rotation
 //operator * (const E1& v1, const E2& v2) {
@@ -130,10 +129,10 @@ struct is_acceptable_rhs_matrix<T<Scalar>> {
 
   using scalar_type = Scalar;
 
-  static const Matrix_expr<Scalar>& cast(const Matrix<Scalar>& v) {
+  static const Matrix_expr<Scalar> &cast(const Matrix<Scalar> &v) {
     return *new Matrix_expr_leaf<Scalar>(v);
   }
-  static const Matrix_expr<Scalar>& cast(const Matrix_expr<Scalar>& v) {
+  static const Matrix_expr<Scalar> &cast(const Matrix_expr<Scalar> &v) {
     return v;
   }
 };
@@ -144,43 +143,44 @@ template <typename Scalar>
 struct is_acceptable_rhs_matrix<Translation<Scalar>> {
   static const bool value = true;
   using scalar_type = Scalar;
-  static const Matrix_expr<Scalar>& cast(const Translation<Scalar>& v) {
+  static const Matrix_expr<Scalar> &cast(const Translation<Scalar> &v) {
     return *new Translation_expr_leaf<Scalar>(v);
   }
 };
 
-template<typename E1, typename E2>
+template <typename E1, typename E2>
 // sets return type to Matrix_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_matrix<E2>::value, 
-         const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type>&>::type
+typename std::enable_if<
+    is_acceptable_rhs_matrix<E2>::value,
+    const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type> &>::type
 // ...for matrix * matrix
-operator * (const E1& v1, const E2& v2) {
+operator*(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_mul<typename is_acceptable_rhs_matrix<E1>::scalar_type>(
-          is_acceptable_rhs_matrix<E1>::cast(v1),
-          is_acceptable_rhs_matrix<E2>::cast(v2));
+      is_acceptable_rhs_matrix<E1>::cast(v1), is_acceptable_rhs_matrix<E2>::cast(v2));
 }
 
-template<typename E1>
+template <typename E1>
 // sets return type to Matrix_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_matrix<E1>::value, 
-         const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type>&>::type
+typename std::enable_if<
+    is_acceptable_rhs_matrix<E1>::value,
+    const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type> &>::type
 // ...for - matrix
-operator - (const E1& v1) {
+operator-(const E1 &v1) {
   return *new Matrix_expr_unary_minus<typename is_acceptable_rhs_matrix<E1>::scalar_type>(
-          is_acceptable_rhs_matrix<E1>::cast(v1));
+      is_acceptable_rhs_matrix<E1>::cast(v1));
 }
 
-template<typename E1, typename E2>
+template <typename E1, typename E2>
 // sets return type to Matrix_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_matrix<E2>::value, 
-         const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type>&>::type
+typename std::enable_if<
+    is_acceptable_rhs_matrix<E2>::value,
+    const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type> &>::type
 // ...for matrix * matrix
-operator + (const E1& v1, const E2& v2) {
+operator+(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_add<typename is_acceptable_rhs_matrix<E1>::scalar_type>(
-          is_acceptable_rhs_matrix<E1>::cast(v1),
-          is_acceptable_rhs_matrix<E2>::cast(v2));
+      is_acceptable_rhs_matrix<E1>::cast(v1), is_acceptable_rhs_matrix<E2>::cast(v2));
 }
 
-}
+} // namespace ctup
 
 #endif

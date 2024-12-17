@@ -1,0 +1,13 @@
+UseTab: Never
+IndentWidth: 2
+TabWidth: 2
+AlwaysBreakTemplateDeclarations: Yes
+SpaceBeforeAssignmentOperators: true
+AllowShortFunctionsOnASingleLine: Empty
+ColumnLimit: 100
+ReflowComments: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  BeforeElse: true
+AllowShortBlocksOnASingleLine: Empty
+BinPackArguments: false
