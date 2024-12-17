@@ -85,5 +85,10 @@ int main(int argc, char *argv[]) {
   std::cout << "Eigen X_T[1]:\n" << X_T[1] << "\n";
   std::cout << "Eigen X2:\n" << X2 << "\n";
 
-  ctup_gen::fk(q);
+  Eigen::Matrix<double, 6, 6> us_X2 = ctup_gen::fk(q);
+
+  if (us_X2.isApprox(X2, 1e-5))
+    return 1;
+  else
+    return 0;
 }

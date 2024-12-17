@@ -1,0 +1,41 @@
+name: CI Workflow
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-20.04
+
+    steps:
+      # Checkout the repository, including submodules recursively
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+      - run: sudo apt install g++
+
+      # Build the project
+      - name: Build Project
+      - run: make -C {{github.workspace }} -j$(nproc)
+
+      ## Run sample10
+      #- name: Run sample10
+      #  run: |
+      #    ./build/sample10 ./apps/sample10/fk_gen.h
+
+      ## Build the driver
+      #- name: Build Driver
+      #  run: |
+      #    make build/driver
+
+      # Run the driver (failure/success determined by exit code)
+      - name: Run Driver
+      - run: ./build/driver
+      - run: echo "Build and test completed"
+
