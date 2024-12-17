@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
+      - run: echo "Starting build and test"
       # Checkout the repository, including submodules recursively
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,7 +23,7 @@ jobs:
 
       # Build the project
       - name: Build Project
-      - run: make -C {{github.workspace }} -j$(nproc)
+        run: make -C {{github.workspace }} -j$(nproc)
 
       ## Run sample10
       #- name: Run sample10
@@ -36,6 +37,5 @@ jobs:
 
       # Run the driver (failure/success determined by exit code)
       - name: Run Driver
-      - run: ./build/driver
+        run: ./build/driver
       - run: echo "Build and test completed"
-
