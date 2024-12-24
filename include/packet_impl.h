@@ -758,8 +758,8 @@ struct Rotation : public Matrix<EigenMatrix<Scalar>> { //CAMBIO
 
 template <typename Scalar>
 struct Packet {
-  Rotation<Scalar> rot; //CAMBIO
-  Translation<Scalar> trans; //CAMBIO
+  Rotation<Scalar> rot;
+  Translation<Scalar> trans;
 
   Matrix<EigenMatrix<Scalar,flags.size_subpacket,1>> minus_E_rcross;
 
