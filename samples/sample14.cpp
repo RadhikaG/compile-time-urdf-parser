@@ -71,8 +71,8 @@ static dyn_var<ctup::EigenMatrix<double>> fk(dyn_var<builder::eigen_vectorXd_t &
 
   set_X_T(X_T);
 
-  Packet<double> X_1;
-  Packet<double> X_2;
+  Packet<ctup::EigenMatrix<double,16,1>> X_1;
+  Packet<ctup::EigenMatrix<double,16,1>> X_2;
 
   X1.set_revolute_axis('Z');
   X1.jcalc(q(1));

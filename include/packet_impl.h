@@ -33,8 +33,8 @@ struct Flags {
   bool is_vectorized;
   bool is_threaded;
   size_t n_threads;
-  size_t size_packet;
-  size_t size_subpacket;
+  //size_t size_packet;
+  //size_t size_subpacket;
   enum {
     AVX2,
     AVX512,
@@ -42,7 +42,8 @@ struct Flags {
   } simd_type_id;
 
   Flags(Sparsity_type_id _sparsity_type_id = DENSE, bool _simplify_zero = true)
-      : simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id,size_t size_packet = 36,size_t size_subpacket=16) {}
+      : simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id,//size_t size_packet = 36,size_t size_subpacket=16
+      ) {}
 };
 // only one of this through ctup for now
 static Flags flags(DENSE, // sparsity_type_id
@@ -80,15 +81,17 @@ struct Matrix_expr {
 template <typename Scalar>
 struct Storage {
 private:
+  typename innerType=double; //NEW, HAS TO CHANGE
+
   // SparseEntry should be inaccessible from outside Storage
-  struct SparseEntry {
+  struct SparseEntry {    
     dyn_var<Scalar> dyn_entry; // = builder::defer_init();
-    static_var<double> static_entry; //CAMBIO
+    static_var<innerType> static_entry; //CAMBIO
     static_var<int> is_constant;
 
     SparseEntry() : static_entry(0), is_constant(true) {}
 
-    void operator=(Scalar val) {
+    void operator=(innerType val) { //CHANGE
       is_constant = true;
       static_entry = val;
     }
@@ -507,9 +510,9 @@ struct Translation {
 private:
   // marked private because we want to make sure we track sparsity whenever
   // we assign some value to x, y, or z with an explicit setter
-  dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> x;//CAMBIO
-  dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> y;//CAMBIO
-  dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> z;//CAMBIO
+  dyn_var<Scalar> x;
+  dyn_var<Scalar> y;
+  dyn_var<Scalar> z;
 
 public:
   static_var<int> has_x;
@@ -528,7 +531,7 @@ public:
     set_z(_z);
   }
 
-  void set_x(Scalar val) {
+  void set_x(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_x = false;
       x.setZero();//CAMBIO
@@ -538,12 +541,12 @@ public:
     x.setConstant(val);//CAMBIO
   }
 
-  void set_x(EigenMatrix<Scalar,flags.size_subpacket,1>& val) {//NUEVO
+  void set_x(Scalar& val) {//NUEVO
     has_x = true;
     x=val;
   }
 
-  void set_y(Scalar val) {
+  void set_y(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_y = false;
       y.setZero();//CAMBIO
@@ -553,12 +556,12 @@ public:
     y.setConstant(val);//CAMBIO
   }
 
-  void set_y(EigenMatrix<Scalar,flags.size_subpacket,1>& val) {//NUEVO
+  void set_y(Scalar& val) {//NUEVO
     has_y = true;
     y=val;
   }
 
-  void set_z(Scalar val) {
+  void set_z(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_z = false;
       z.setZero();//CAMBIO
@@ -568,32 +571,32 @@ public:
     z.setConstant(val);//CAMBIO
   }
 
-  void set_z(EigenMatrix<Scalar,flags.size_subpacket,1>& val) {//NUEVO
+  void set_z(Scalar& val) {//NUEVO
     has_z = true;
     z=val;
   }
 
-  // the variable returned here is marked const so no one can modify the dyn_var directly
-  const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> get_x() const { //CAMBIO
+  // the variable returned here is marked const so no one can modify the dyn_var directly}
+
+  const dyn_var<Scalar> get_x() const {
     if (has_x)
       return x;
     else
-      dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> a.setZero();//CAMBIO
-      return a;
+      return 0;//0 should extend
   }
-  const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> get_y() const {
+
+  const dyn_var<Scalar> get_y() const {
     if (has_y)
       return y;
     else
-      dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> a.setZero();//CAMBIO
-      return a;
+      return 0;
   }
-  const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> get_z() const {
+  
+  const dyn_var<Scalar> get_z() const {
     if (has_z)
       return z;
     else
-      dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> a.setZero();//CAMBIO
-      return a;
+      return 0;
   }
 
   void set_prismatic_axis(char axis) {
@@ -610,7 +613,7 @@ public:
     }
   }
 
-  void jcalc(const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>>& q_i) {//CAMBIO
+  void jcalc(const dyn_var<Scalar>& q_i) {//CAMBIO
     if (has_x)
       x = q_i;
     if (has_y)
@@ -619,7 +622,7 @@ public:
       z = q_i;
   }
 
-  void operator=(const Translation_expr<Scalar>& rhs) {//CAMBIO
+  void operator=(const Translation_expr<Scalar>& rhs) {
     if (rhs.has_x()) {
       has_x = true;
       x = rhs.get_x();
@@ -683,12 +686,12 @@ struct Matrix {
   }
 };
 
-template <typename Scalar> //CAMBIO
-struct Rotation : public Matrix<EigenMatrix<Scalar>> { //CAMBIO
-  using Matrix<EigenMatrix<Scalar,flags.size_subpacket,1>>::storage; //CAMBIO
+template <typename Scalar>
+struct Rotation : public Matrix<Scalar> {
+  using Matrix<Scalar>::storage;
 
-  dyn_var<EigenMatrix<double,flags.size_subpacket,1>> sinq;
-  dyn_var<EigenMatrix<double,flags.size_subpacket,1>> cosq;
+  dyn_var<Scalar> sinq;
+  dyn_var<Scalar> cosq;
 
   static_var<int> is_joint_packet;
   static_var<int> has_x;
@@ -696,8 +699,8 @@ struct Rotation : public Matrix<EigenMatrix<Scalar>> { //CAMBIO
   static_var<int> has_z;
 
   Rotation()
-      : Matrix<EigenMatrix<Scalar,flags.size_subpacket,1>>(3, 3), is_joint_packet(false), has_x(false), has_y(false), has_z(false) {//CAMBIO
-    Matrix<EigenMatrix<Scalar,flags.size_subpacket,1>>::set_identity();//CAMBIO
+      : Matrix<Scalar>(3, 3), is_joint_packet(false), has_x(false), has_y(false), has_z(false) {
+    Matrix<Scalar>::set_identity();
   }
 
   void set_revolute_axis(char axis) {
@@ -713,9 +716,9 @@ struct Rotation : public Matrix<EigenMatrix<Scalar>> { //CAMBIO
     }
   }
 
-  void jcalc(const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>> &q_i) { //CAMBIO
+  void jcalc(const dyn_var<Scalar> &q_i) {
     // Featherstone, Table 2.2
-    sinq = backend::sin(q_i);
+    sinq = backend::sin(q_i); //REVISE
     cosq = backend::cos(q_i);
 
     assertm(is_joint_packet == true, "can't jcalc on a non-joint packet");
@@ -761,13 +764,13 @@ struct Packet {
   Rotation<Scalar> rot;
   Translation<Scalar> trans;
 
-  Matrix<EigenMatrix<Scalar,flags.size_subpacket,1>> minus_E_rcross;
+  Matrix<Scalar> minus_E_rcross;
 
   static_var<int> is_joint_packet;
   static_var<int> has_rotation;
   static_var<int> has_translation;
 
-  Packet() : minus_E_rcross(3, 3), has_rotation(true), has_translation(true) {}//CAMBIO
+  Packet() : minus_E_rcross(3, 3), has_rotation(true), has_translation(true) {}//REVISAR
 
   // if set_revolute/prismatic funcs are being called, it means this Packet is associated
   // with a joint.
@@ -785,7 +788,7 @@ struct Packet {
     has_translation = true;
     trans.set_prismatic_axis(axis);
   }
-  void jcalc(const dyn_var<EigenMatrix<Scalar,flags.size_subpacket,1>>& q_i) {//CAMBIO
+  void jcalc(const dyn_var<Scalar>& q_i) {
     if (has_rotation) {
       rot.jcalc(q_i);
     }
