@@ -62,7 +62,7 @@ static void set_X_T(Xform<double> X_T[]) {
   }
 }
 
-static dyn_var<ctup::EigenMatrix<double>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
+static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
   Xform<double> X_T[N_X_T];
 
   static_var<int> r;
@@ -81,7 +81,7 @@ static dyn_var<ctup::EigenMatrix<double>> fk(dyn_var<builder::eigen_vectorXd_t &
   print_Xmat("us X_T[1]:", X_T[1]);
   print_Xmat("us X2:", X2);
 
-  dyn_var<ctup::EigenMatrix<double>> final_ans;
+  dyn_var<ctup::EigenMatrix<double, 6, 6>> final_ans;
 
   toEigen(final_ans, X2);
 

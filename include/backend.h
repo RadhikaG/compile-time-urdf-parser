@@ -1,6 +1,7 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 #include "Eigen/Dense"
+#include "Eigen/src/Core/util/Constants.h"
 #include "blocks/block_visitor.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/var.h"
@@ -9,6 +10,8 @@
 #include "builder/dyn_var.h"
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
+// Use (void) to silence unused warnings.
+#define assertm(exp, msg) assert(((void)msg, exp))
 
 using builder::dyn_var;
 using builder::static_var;
@@ -20,9 +23,37 @@ builder::dyn_var<double(double)> sin = builder::as_global("sin");
 builder::dyn_var<double(double)> cos = builder::as_global("cos");
 } // namespace backend
 
-static const char eigen_matrix_t_name[] = "Eigen::Matrix";
-template <typename Scalar>
-using EigenMatrix = builder::name<eigen_matrix_t_name, Scalar>;
+//static const char eigen_matrix_t_name[] = "Eigen::Matrix";
+//template <typename Scalar>
+//using _EigenMatrix = builder::name<eigen_matrix_t_name, Scalar>;
+
+template <typename Scalar, int Rows_=Eigen::Dynamic, int Cols_=Eigen::Dynamic>
+struct EigenMatrix {
+  static constexpr const char* type_name = "Eigen::Matrix";
+
+  static auto get_template_arg_types() {
+    std::vector<block::type::Ptr> types;
+
+    auto d1 = std::make_shared<block::named_type>();
+    auto d2 = std::make_shared<block::named_type>();
+    if (Rows_ == Eigen::Dynamic)
+      d1->type_name = "Eigen::Dynamic";
+    else
+      d1->type_name = std::to_string(Rows_);
+    if (Cols_ == Eigen::Dynamic)
+      d2->type_name = "Eigen::Dynamic";
+    else
+      d2->type_name = std::to_string(Cols_);
+
+    types.push_back(dyn_var<Scalar>::create_block_type());
+    types.push_back(d1);
+    types.push_back(d2);
+
+    return types;
+  }
+};
+
+
 } // namespace ctup
 
 namespace builder {
@@ -55,51 +86,52 @@ public:
   dyn_var<eigen_vectorXd_t(void)> sin = as_member(this, "sin");
 };
 
-template <typename Scalar>
-class dyn_var<ctup::EigenMatrix<Scalar>> : public dyn_var_impl<ctup::EigenMatrix<Scalar>> {
+// same convention as Eigen::Matrix
+// https://eigen.tuxfamily.org/dox-devel/classEigen_1_1Matrix.html
+template <typename Scalar, int Rows_, int Cols_>
+class dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_>> : public dyn_var_impl<ctup::EigenMatrix<Scalar, Rows_, Cols_>> {
 public:
-  typedef dyn_var_impl<ctup::EigenMatrix<Scalar>> super;
+  typedef dyn_var_impl<ctup::EigenMatrix<Scalar, Rows_, Cols_>> super;
   using super::super;
   using super::operator=;
-  builder operator=(const dyn_var<ctup::EigenMatrix<Scalar>> &t) {
+  builder operator=(const dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_>> &t) {
     return (*this) = (builder)t;
   }
 
-  dyn_var() : dyn_var_impl<ctup::EigenMatrix<Scalar>>() {}
-
-  dyn_var(size_t _n_rows, size_t _n_cols) : dyn_var_impl<ctup::EigenMatrix<Scalar>>() {
+  void set_matrix_fixed_size(int _n_rows, int _n_cols) {
     auto type = block::to<block::named_type>(this->block_var->var_type);
-    auto d1 = std::make_shared<block::named_type>();
-    auto d2 = std::make_shared<block::named_type>();
-    if (_n_rows == 0)
-      d1->type_name = "Eigen::Dynamic";
-    else
-      d1->type_name = std::to_string(_n_rows);
-    if (_n_cols == 0)
-      d2->type_name = "Eigen::Dynamic";
-    else
-      d2->type_name = std::to_string(_n_cols);
+    auto d1 = block::to<block::named_type>(type->template_args[1]);
+    auto d2 = block::to<block::named_type>(type->template_args[2]);
+    d1->type_name = std::to_string(_n_rows);
+    d2->type_name = std::to_string(_n_cols);
 
-    type->template_args.push_back(d1);
-    type->template_args.push_back(d2);
+    //type->template_args.push_back(d1);
+    //type->template_args.push_back(d2);
   }
 
-  dyn_var(const dyn_var<ctup::EigenMatrix<Scalar>> &t)
-      : dyn_var_impl<ctup::EigenMatrix<Scalar>>((builder)t) {
+  dyn_var() : dyn_var_impl<ctup::EigenMatrix<Scalar, Rows_, Cols_>>() {}
+
+  dyn_var(size_t _n_rows, size_t _n_cols) : dyn_var_impl<ctup::EigenMatrix<Scalar>>() {
+    assertm(Rows_ == Eigen::Dynamic && Cols_ == Eigen::Dynamic, "can't have fixed and dynamic size param at same time");
+    set_matrix_fixed_size(_n_rows, _n_cols);
+  }
+
+  dyn_var(const dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_>> &t)
+      : dyn_var_impl<ctup::EigenMatrix<Scalar, Rows_, Cols_>>((builder)t) {
     this->block_var->var_type = block::clone(t.block_var->var_type);
   }
 
   // so indexing into matrix types returns a dyn_var<Scalar>
   dyn_var<Scalar> operator[](const builder &bt) {
-    return (dyn_var<Scalar>)(cast)this->dyn_var_impl<ctup::EigenMatrix<Scalar>>::operator[](bt);
+    return (dyn_var<Scalar>)(cast)this->dyn_var_impl<ctup::EigenMatrix<Scalar, Rows_, Cols_>>::operator[](bt);
   }
 
   dyn_var<double &(Eigen::Index, Eigen::Index)> coeffRef = as_member(this, "coeffRef");
   dyn_var<double &(Eigen::Index, Eigen::Index)> block =
       as_member(this, "block<3,3>"); // remove template params later
   dyn_var<void(void)> setZero = as_member(this, "setZero");
-  dyn_var<ctup::EigenMatrix<Scalar> &(double)> setConstant = as_member(this, "setConstant");
-  dyn_var<ctup::EigenMatrix<Scalar> &(void)> transpose = as_member(this, "transpose");
+  dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(double)> setConstant = as_member(this, "setConstant");
+  dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> transpose = as_member(this, "transpose");
   dyn_var<eigen_vectorXd_t &(Eigen::Index)> col = as_member(this, "col");
 };
 

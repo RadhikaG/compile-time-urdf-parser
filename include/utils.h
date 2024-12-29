@@ -18,8 +18,8 @@ namespace ctup {
 builder::dyn_var<void(EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
 builder::dyn_var<void(char *)> print_string = builder::as_global("print_string");
 
-template <typename Scalar>
-void toPinEigen(dyn_var<EigenMatrix<Scalar>> &mat, Xform<Scalar> &xform) {
+template <typename Scalar, int Rows_, int Cols_>
+void toPinEigen(dyn_var<EigenMatrix<Scalar, Rows_, Cols_>> &mat, Xform<Scalar> &xform) {
   // pinocchio outputs transpose of actual matrix
   static_var<int> r, c;
 
@@ -30,8 +30,8 @@ void toPinEigen(dyn_var<EigenMatrix<Scalar>> &mat, Xform<Scalar> &xform) {
   }
 }
 
-template <typename Scalar>
-void toEigen(dyn_var<EigenMatrix<Scalar>> &mat, Xform<Scalar> &xform) {
+template <typename Scalar, int Rows_, int Cols_>
+void toEigen(dyn_var<EigenMatrix<Scalar, Rows_, Cols_>> &mat, Xform<Scalar> &xform) {
   // pinocchio outputs transpose of actual matrix
   static_var<int> r, c;
 
