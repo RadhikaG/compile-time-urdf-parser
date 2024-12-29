@@ -78,15 +78,16 @@ struct Matrix_expr {
 template <typename Scalar>
 struct Storage {
 private:
+  using InnerType=double; //NEW, HAS TO CHANGE
   // SparseEntry should be inaccessible from outside Storage
   struct SparseEntry {
     dyn_var<Scalar> dyn_entry; // = builder::defer_init();
-    static_var<Scalar> static_entry;
+    static_var<InnerType> static_entry;
     static_var<int> is_constant;
 
     SparseEntry() : static_entry(0), is_constant(true) {}
 
-    void operator=(Scalar val) {
+    void operator=(InnerType val) { //CHANGE
       is_constant = true;
       static_entry = val;
     }
@@ -246,7 +247,7 @@ public:
     return false;
   }
 
-  Scalar get_constant_entry(size_t i, size_t j) const {
+  InnerType get_constant_entry(size_t i, size_t j) const { //CHANGE
     size_t flattened_idx = get_flattened_index(i, j);
 
     if (sparsity_type_id == DENSE)
@@ -262,7 +263,7 @@ public:
     return false;
   }
 
-  void set_entry_to_constant(size_t i, size_t j, Scalar val) {
+  void set_entry_to_constant(size_t i, size_t j, InnerType val) { //CHANGE
     size_t flattened_idx = get_flattened_index(i, j);
 
     if (flags.simplify_zero) {
@@ -386,17 +387,17 @@ struct Translation_expr : public Matrix_expr<Scalar> {
   }
 
   virtual const builder::builder get_x() const {
-    return dyn_var<int>();
+    return dyn_var<Scalar>(); //CHANGE
   }
   virtual const builder::builder get_y() const {
-    return dyn_var<int>();
+    return dyn_var<Scalar>(); //CHANGE
   }
   virtual const builder::builder get_z() const {
-    return dyn_var<int>();
+    return dyn_var<Scalar>(); //CHANGE
   }
 
   virtual const std::vector<size_t> get_expr_shape(void) const override {
-    return std::vector<size_t>({3, 3});
+    return std::vector<size_t>({3, 3}); //FALTA
   }
 
   virtual int has_x() const {
@@ -518,6 +519,7 @@ public:
     x = 0;
     y = 0;
     z = 0;
+    //solved when we change = to .array()
   }
 
   Translation(Scalar _x, Scalar _y, Scalar _z) {
@@ -526,32 +528,49 @@ public:
     set_z(_z);
   }
 
-  void set_x(Scalar val) {
+  void set_x(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_x = false;
-      x = 0;
+      x=0;//CAMBIO
       return;
     }
     has_x = true;
-    x = val;
+    x.setConstant(val);//CAMBIO
   }
-  void set_y(Scalar val) {
+
+  void set_x(Scalar& val) {//NUEVO
+    has_x = true;
+    x=val;
+  }
+
+  void set_y(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_y = false;
-      y = 0;
+      y=0;//CAMBIO
       return;
     }
     has_y = true;
-    y = val;
+    y.setConstant(val);//CAMBIO
   }
-  void set_z(Scalar val) {
+
+  void set_y(Scalar& val) {//NUEVO
+    has_y = true;
+    y=val;
+  }
+
+  void set_z(double val) {//CAMBIO
     if (std::abs(val) < 1e-5) {
       has_z = false;
-      z = 0;
+      z=0;//CAMBIO
       return;
     }
     has_z = true;
-    z = val;
+    z.setConstant(val);//CAMBIO
+  }
+
+  void set_z(Scalar& val) {//NUEVO
+    has_z = true;
+    z=val;
   }
 
   // the variable returned here is marked const so no one can modify the dyn_var directly
@@ -588,7 +607,7 @@ public:
     }
   }
 
-  void jcalc(const dyn_var<Scalar> q_i) {
+  void jcalc(const dyn_var<Scalar>& q_i) {
     if (has_x)
       x = q_i;
     if (has_y)
@@ -597,7 +616,7 @@ public:
       z = q_i;
   }
 
-  void operator=(const Translation_expr<Scalar> &rhs) {
+  void operator=(const Translation_expr<Scalar>& rhs) {
     if (rhs.has_x()) {
       has_x = true;
       x = rhs.get_x();
@@ -615,6 +634,7 @@ public:
 
 template <typename Scalar>
 struct Matrix {
+  using InnerType=double;//NEW
   Storage<Scalar> storage;
   const size_t n_rows;
   const size_t n_cols;
@@ -623,7 +643,7 @@ struct Matrix {
          typename Storage<Scalar>::Storage_order_id _soi = Storage<Scalar>::COL_MAJ)
       : storage(_n_rows, _n_cols, _sti, _soi), n_rows(_n_rows), n_cols(_n_cols) {}
 
-  void set_entry_to_constant(size_t i, size_t j, Scalar val) {
+  void set_entry_to_constant(size_t i, size_t j, InnerType val) { //CHANGE
     storage.set_entry_to_constant(i, j, val);
   }
 
@@ -665,8 +685,8 @@ template <typename Scalar>
 struct Rotation : public Matrix<Scalar> {
   using Matrix<Scalar>::storage;
 
-  dyn_var<double> sinq;
-  dyn_var<double> cosq;
+  dyn_var<Scalar> sinq; //CHANGE
+  dyn_var<Scalar> cosq; //CHANGE
 
   static_var<int> is_joint_xform;
   static_var<int> has_x;
@@ -693,7 +713,7 @@ struct Rotation : public Matrix<Scalar> {
 
   void jcalc(const dyn_var<Scalar> &q_i) {
     // Featherstone, Table 2.2
-    sinq = backend::sin(q_i);
+    sinq = backend::sin(q_i); //REVISE
     cosq = backend::cos(q_i);
 
     assertm(is_joint_xform == true, "can't jcalc on a non-joint xform");
@@ -763,7 +783,7 @@ struct Xform {
     has_translation = true;
     trans.set_prismatic_axis(axis);
   }
-  void jcalc(const dyn_var<Scalar> &q_i) {
+  void jcalc(const dyn_var<Scalar>& q_i) {
     if (has_rotation) {
       rot.jcalc(q_i);
     }
