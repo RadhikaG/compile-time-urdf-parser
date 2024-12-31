@@ -858,6 +858,7 @@ struct Matrix_expr_unary_minus : public Matrix_expr<T> {
   }
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
+    //return -expr1.get_value_at(i, j);
     return -expr1.get_value_at(i, j);
   }
 
@@ -880,6 +881,40 @@ struct Matrix_expr_add : public Matrix_expr<T> {
     assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
     expr_shape.push_back(shape1[0]);
     expr_shape.push_back(shape1[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
+    return expr1.get_value() + expr2.get_value();
+  }
+
+  const builder::builder get_value_at(size_t i, size_t j) const override {
+    return expr1.get_value_at(i, j) + expr2.get_value_at(i, j);
+  }
+
+  int is_nonzero(size_t i, size_t j) const override {
+    return expr1.is_nonzero(i, j) || expr2.is_nonzero(i, j);
+  }
+};
+
+template <typename T1, typename T2> //NEW
+struct Matrix_expr_add_sec : public Matrix_expr<T1> {
+  const struct Matrix_expr<T1> &expr1;
+  const struct Matrix_expr<T2> &expr2;
+
+  std::vector<size_t> expr_shape;
+
+  Matrix_expr_add_sec(const struct Matrix_expr<T1> &expr1, const struct Matrix_expr<T2> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
+    expr_shape.push_back(shape2[1]);
   }
 
   const std::vector<size_t> get_expr_shape() const override {
@@ -945,6 +980,54 @@ struct Matrix_expr_mul : public Matrix_expr<T> {
   }
 };
 
+template <typename T1, typename T2> //NEW
+struct Matrix_expr_mul_sec : public Matrix_expr<T1> {
+  const struct Matrix_expr<T1> &expr1;
+  const struct Matrix_expr<T2> &expr2;
+
+  std::vector<size_t> expr_shape;
+
+  Matrix_expr_mul_sec(const struct Matrix_expr<T1> &expr1, const struct Matrix_expr<T2> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[1] == shape2[0], "inner dim of matmul expr must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape2[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
+    return expr1.get_value() * expr2.get_value();
+  }
+
+  const builder::builder get_value_at(size_t i, size_t j) const override { //DON'T LIKE IT
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    dyn_var<T1> sum;
+    sum.array() = 0; //CHANGE
+    // k is inner_dim for matmul
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
+      sum.array() += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);//CHANGE
+    }
+    return sum;
+  }
+
+  int is_nonzero(size_t i, size_t j) const override {
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
+      // when summing up products of inner_dim, if any one product is nonzero
+      // then (i, j) is guaranteed to be nonzero.
+      if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
+        return true;
+    }
+    return false;
+  }
+
+};
+
 template <typename T>
 struct Translation_expr_leaf : public Translation_expr<T> {
   const struct Translation<T> &m_trans;
@@ -979,6 +1062,36 @@ struct Translation_expr_add : public Translation_expr<T> {
 
   Translation_expr_add(const struct Translation_expr<T> &expr1,
                        const struct Translation_expr<T> &expr2)
+      : expr1(expr1), expr2(expr2) {}
+
+  const builder::builder get_x() const override {
+    return expr1.get_x() + expr2.get_x();
+  }
+  const builder::builder get_y() const override {
+    return expr1.get_y() + expr2.get_y();
+  }
+  const builder::builder get_z() const override {
+    return expr1.get_z() + expr2.get_z();
+  }
+
+  int has_x() const override {
+    return expr1.has_x() || expr2.has_x();
+  }
+  int has_y() const override {
+    return expr1.has_y() || expr2.has_y();
+  }
+  int has_z() const override {
+    return expr1.has_z() || expr2.has_z();
+  }
+};
+
+template <typename T1, typename T2> //NEW
+struct Translation_expr_add_sec : public Translation_expr<T1> {
+  const struct Translation_expr<T1> &expr1;
+  const struct Translation_expr<T2> &expr2;
+
+  Translation_expr_add_sec(const struct Translation_expr<T1> &expr1,
+                       const struct Translation_expr<T2> &expr2)
       : expr1(expr1), expr2(expr2) {}
 
   const builder::builder get_x() const override {
@@ -1092,7 +1205,31 @@ struct Xform_expr_leaf : public Xform_expr<T> {
   }
 };
 
-template <typename T> //HAS TO CHANGE TO ADD T1 T2
+template <typename T1, typename T2> //NEW
+struct Xform_expr_mul_sec : public Xform_expr<T1> {
+  const struct Xform_expr<T1> &expr1;
+  const struct Xform_expr<T2> &expr2;
+
+  Xform_expr_mul_sec(const struct Xform_expr<T1> &expr1, const struct Xform_expr<T2> &expr2)
+      : expr1(expr1), expr2(expr2) {}
+
+  const Matrix_expr<T1> &get_rotation_expr() const override {
+    return expr1.get_rotation_expr() * expr2.get_rotation_expr();
+  }
+  const Matrix_expr<T1> &get_minus_E_rcross_expr() const override {
+    return expr1.get_minus_E_rcross_expr() * expr2.get_rotation_expr() +
+           expr1.get_rotation_expr() * expr2.get_minus_E_rcross_expr();
+  }
+
+  int has_rotation() const override {
+    return expr1.has_rotation() || expr2.has_rotation();
+  }
+  int has_translation() const override {
+    return expr1.has_translation() || expr2.has_translation();
+  }
+};
+
+template <typename T>
 struct Xform_expr_mul : public Xform_expr<T> {
   const struct Xform_expr<T> &expr1;
   const struct Xform_expr<T> &expr2;

@@ -133,6 +133,7 @@ public:
   dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(double)> setConstant = as_member(this, "setConstant");
   dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> transpose = as_member(this, "transpose");
   dyn_var<eigen_vectorXd_t &(Eigen::Index)> col = as_member(this, "col");
+  dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> array = as_member(this, "array");
 };
 
 } // namespace builder
