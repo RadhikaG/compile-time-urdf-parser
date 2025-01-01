@@ -43,9 +43,35 @@ struct Flags {
       : simplify_zero(_simplify_zero), sparsity_type_id(_sparsity_type_id) {}
 };
 // only one of this through ctup for now
-static Flags flags(DENSE, // sparsity_type_id
+static Flags flags(SPARSE_UNROLLED, // sparsity_type_id
                    true   // simplify_zero
 );
+
+//GET THE INNER TYPE INSIDE MATRIX
+template <typename T>
+struct inner_type { 
+  using type = T;
+};
+
+template <typename T,int _Rows, int _Col>
+struct inner_type<ctup::EigenMatrix<T, _Rows, _Col>> {
+    using type = T;
+};
+
+template <typename T>
+using inner_type_t = typename inner_type<T>::type;
+
+
+//GET IF IS TYPE EIGENMATRIX
+template <typename T>
+struct is_Matrix : std::false_type {};
+
+template <typename T,int _Rows, int _Col>
+struct is_Matrix<ctup::EigenMatrix<T, _Rows, _Col>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_Matrix_m = is_Matrix<T>::value;
+
 
 template <typename T>
 struct Matrix_expr {
@@ -78,7 +104,8 @@ struct Matrix_expr {
 template <typename T>
 struct Storage {
 private:
-  using Scalar=double; //NEW, HAS TO CHANGE
+  using Scalar= ctup::inner_type_t<T>; //NEW
+
   // SparseEntry should be inaccessible from outside Storage
   struct SparseEntry {
     dyn_var<T> dyn_entry; // = builder::defer_init();
@@ -634,7 +661,8 @@ public:
 
 template <typename T>
 struct Matrix {
-  using Scalar=double;//NEW
+  using Scalar= ctup::inner_type_t<T>;//NEW
+
   Storage<T> storage;
   const size_t n_rows;
   const size_t n_cols;

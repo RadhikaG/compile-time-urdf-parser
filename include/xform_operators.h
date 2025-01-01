@@ -8,28 +8,6 @@ namespace ctup {
 
 /*** Xform expressions **/
 
-template <typename T>
-struct is_Matrix : std::false_type {};
-
-template <typename T,int _Rows, int _Col>
-struct is_Matrix<ctup::EigenMatrix<T, _Rows, _Col>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_Matrix_m = is_Matrix<T>::value;
-
-template <typename T>
-struct inner_type { 
-  using type = T;
-};
-
-template <typename T,int _Rows, int _Col>
-struct inner_type<ctup::EigenMatrix<T, _Rows, _Col>> {
-    using type = T;
-};
-
-template <typename T>
-using inner_type_t = typename inner_type<T>::type;
-
 // type trait for checking if expr types are compatible with each other
 template <typename Scalar>
 struct is_acceptable_rhs_xform {
@@ -81,7 +59,7 @@ operator*(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Xform_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_xform<E2>::value && is_acceptable_rhs_xform<E1>::matrix && not(is_acceptable_rhs_xform<E2>::matrix), //&& std::is_same<is_acceptable_rhs_xform<E1>::scalar_type , is_acceptable_rhs_xform<E2>::ins_type>::value,
+typename std::enable_if<is_acceptable_rhs_xform<E2>::value && is_acceptable_rhs_xform<E1>::matrix && not(is_acceptable_rhs_xform<E2>::matrix) && std::is_same<typename is_acceptable_rhs_xform<E2>::scalar_type, typename is_acceptable_rhs_xform<E1>::scalar_type>::value,
                         const Xform_expr<typename is_acceptable_rhs_xform<E1>::ins_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Xform_expr_mul_sec<typename is_acceptable_rhs_xform<E1>::ins_type,typename is_acceptable_rhs_xform<E2>::ins_type>(
@@ -90,7 +68,7 @@ operator*(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Xform_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_xform<E1>::value && is_acceptable_rhs_xform<E2>::matrix && not(is_acceptable_rhs_xform<E1>::matrix),// && is_acceptable_rhs_xform<E2>::ins_type == is_acceptable_rhs_xform<E1>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_xform<E1>::value && is_acceptable_rhs_xform<E2>::matrix && not(is_acceptable_rhs_xform<E1>::matrix) && std::is_same<typename is_acceptable_rhs_xform<E2>::scalar_type, typename is_acceptable_rhs_xform<E1>::scalar_type>::value,
                         const Xform_expr<typename is_acceptable_rhs_xform<E2>::ins_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Xform_expr_mul_sec<typename is_acceptable_rhs_xform<E2>::ins_type,typename is_acceptable_rhs_xform<E1>::ins_type>(
@@ -153,7 +131,7 @@ operator+(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Xform_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_translation<E2>::value && is_acceptable_rhs_translation<E1>::matrix && not(is_acceptable_rhs_translation<E2>::matrix), //&& std::is_same<is_acceptable_rhs_translation<E1>::scalar_type , is_acceptable_rhs_translation<E2>::ins_type>::value,
+typename std::enable_if<is_acceptable_rhs_translation<E2>::value && is_acceptable_rhs_translation<E1>::matrix && not(is_acceptable_rhs_translation<E2>::matrix) && std::is_same<typename is_acceptable_rhs_translation<E2>::scalar_type, typename is_acceptable_rhs_translation<E1>::scalar_type>::value,
                         const Xform_expr<typename is_acceptable_rhs_translation<E1>::ins_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Translation_expr_add_sec<typename is_acceptable_rhs_translation<E1>::ins_type,typename is_acceptable_rhs_translation<E2>::ins_type>(
@@ -162,7 +140,7 @@ operator+(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Xform_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_translation<E1>::value && is_acceptable_rhs_translation<E2>::matrix && not(is_acceptable_rhs_translation<E1>::matrix),// && is_acceptable_rhs_translation<E2>::ins_type == is_acceptable_rhs_translation<E1>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_translation<E1>::value && is_acceptable_rhs_translation<E2>::matrix && not(is_acceptable_rhs_translation<E1>::matrix) && std::is_same<typename is_acceptable_rhs_translation<E2>::scalar_type, typename is_acceptable_rhs_translation<E1>::scalar_type>::value,
                         const Xform_expr<typename is_acceptable_rhs_translation<E2>::ins_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Translation_expr_add_sec<typename is_acceptable_rhs_translation<E2>::ins_type,typename is_acceptable_rhs_translation<E1>::ins_type>(
@@ -258,7 +236,7 @@ typename std::enable_if<
     const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::scalar_type> &>::type
 // ...for matrix * matrix
 operator*(const E1 &v1, const E2 &v2) {
-  return *new Matrix_expr_mul<typename is_acceptable_rhs_matrix<E1>::type>(
+  return *new Matrix_expr_mul<typename is_acceptable_rhs_matrix<E1>::in_type>(
       is_acceptable_rhs_matrix<E1>::cast(v1), is_acceptable_rhs_matrix<E2>::cast(v2));
 }
 
@@ -274,7 +252,7 @@ operator*(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Matrix_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_matrix<E2>::value && is_acceptable_rhs_matrix<E1>::matrix && not(is_acceptable_rhs_matrix<E2>::matrix), //&& is_acceptable_rhs_matrix<E1>::scalar_type == is_acceptable_rhs_matrix<E2>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_matrix<E2>::value && is_acceptable_rhs_matrix<E1>::matrix && not(is_acceptable_rhs_matrix<E2>::matrix) && std::is_same<typename is_acceptable_rhs_matrix<E2>::scalar_type, typename is_acceptable_rhs_matrix<E1>::scalar_type>::value,
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::in_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_mul_sec<typename is_acceptable_rhs_matrix<E1>::in_type,typename is_acceptable_rhs_matrix<E2>::in_type>(
@@ -283,7 +261,7 @@ operator*(const E1 &v1, const E2 &v2) {
 
 template <typename E1, typename E2> //NEW
 // sets return type to Matrix_expr<Scalar>...
-typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs_matrix<E2>::matrix && not(is_acceptable_rhs_matrix<E1>::matrix),// && is_acceptable_rhs_matrix<E2>::scalar_type == is_acceptable_rhs_matrix<E1>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs_matrix<E2>::matrix && not(is_acceptable_rhs_matrix<E1>::matrix) && std::is_same<typename is_acceptable_rhs_matrix<E2>::scalar_type, typename is_acceptable_rhs_matrix<E1>::scalar_type>::value,
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E2>::in_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_mul_sec<typename is_acceptable_rhs_matrix<E2>::in_type,typename is_acceptable_rhs_matrix<E1>::in_type>(
@@ -327,7 +305,7 @@ operator+(const E1 &v1, const E2 &v2) {
 }
 
 template <typename E1, typename E2> //NEW
-typename std::enable_if<is_acceptable_rhs_matrix<E2>::value && is_acceptable_rhs_matrix<E1>::matrix && not(is_acceptable_rhs_matrix<E2>::matrix), //&& is_acceptable_rhs_matrix<E1>::scalar_type == is_acceptable_rhs_matrix<E2>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_matrix<E2>::value && is_acceptable_rhs_matrix<E1>::matrix && not(is_acceptable_rhs_matrix<E2>::matrix) && std::is_same<typename is_acceptable_rhs_matrix<E2>::scalar_type, typename is_acceptable_rhs_matrix<E1>::scalar_type>::value,
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E1>::in_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_add_sec<typename is_acceptable_rhs_matrix<E1>::in_type,typename is_acceptable_rhs_matrix<E2>::in_type>(
@@ -335,7 +313,7 @@ operator+(const E1 &v1, const E2 &v2) {
 }
 
 template <typename E1, typename E2> //NEW
-typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs_matrix<E2>::matrix && not(is_acceptable_rhs_matrix<E1>::matrix),// && is_acceptable_rhs_matrix<E2>::scalar_type == is_acceptable_rhs_matrix<E1>::scalar_type,
+typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs_matrix<E2>::matrix && not(is_acceptable_rhs_matrix<E1>::matrix) && std::is_same<typename is_acceptable_rhs_matrix<E2>::scalar_type, typename is_acceptable_rhs_matrix<E1>::scalar_type>::value,
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E2>::in_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_add_sec<typename is_acceptable_rhs_matrix<E2>::in_type,typename is_acceptable_rhs_matrix<E1>::in_type>(
