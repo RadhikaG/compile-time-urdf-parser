@@ -2,7 +2,9 @@
 #define SPATIALALGEBRA_H
 
 #include "xform_impl.h"
+//#include "packet_impl.h"
 #include "xform_operators.h"
+//#include "packet_operators.h"
 
 #include "blocks/c_code_generator.h"
 #include "blocks/extract_cuda.h"

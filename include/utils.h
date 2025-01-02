@@ -6,6 +6,7 @@
 #include "builder/static_var.h"
 #include "xform_impl.h"
 #include <cassert>
+
 // Use (void) to silence unused warnings.
 #define assertm(exp, msg) assert(((void)msg, exp))
 

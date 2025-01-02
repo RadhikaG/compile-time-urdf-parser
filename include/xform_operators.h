@@ -72,7 +72,7 @@ typename std::enable_if<is_acceptable_rhs_xform<E1>::value && is_acceptable_rhs_
                         const Xform_expr<typename is_acceptable_rhs_xform<E2>::ins_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Xform_expr_mul_sec<typename is_acceptable_rhs_xform<E2>::ins_type,typename is_acceptable_rhs_xform<E1>::ins_type>(
-      is_acceptable_rhs_xform<E1>::cast(v1), is_acceptable_rhs_xform<E2>::cast(v2));
+     is_acceptable_rhs_xform<E2>::cast(v2),  is_acceptable_rhs_xform<E1>::cast(v1));
 }
 
 /*** Translation expressions **/
@@ -144,7 +144,7 @@ typename std::enable_if<is_acceptable_rhs_translation<E1>::value && is_acceptabl
                         const Xform_expr<typename is_acceptable_rhs_translation<E2>::ins_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Translation_expr_add_sec<typename is_acceptable_rhs_translation<E2>::ins_type,typename is_acceptable_rhs_translation<E1>::ins_type>(
-      is_acceptable_rhs_translation<E1>::cast(v1), is_acceptable_rhs_translation<E2>::cast(v2));
+      is_acceptable_rhs_translation<E2>::cast(v2), is_acceptable_rhs_translation<E1>::cast(v1));
 }
 /*** Rotation expressions **/
 
@@ -265,7 +265,7 @@ typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E2>::in_type> &>::type
 operator*(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_mul_sec<typename is_acceptable_rhs_matrix<E2>::in_type,typename is_acceptable_rhs_matrix<E1>::in_type>(
-      is_acceptable_rhs_matrix<E1>::cast(v1), is_acceptable_rhs_matrix<E2>::cast(v2));
+      is_acceptable_rhs_matrix<E2>::cast(v2), is_acceptable_rhs_matrix<E1>::cast(v1));
 }
 
 // OPERATOR - FOR MATRIX
@@ -317,7 +317,7 @@ typename std::enable_if<is_acceptable_rhs_matrix<E1>::value && is_acceptable_rhs
                         const Matrix_expr<typename is_acceptable_rhs_matrix<E2>::in_type> &>::type
 operator+(const E1 &v1, const E2 &v2) {
   return *new Matrix_expr_add_sec<typename is_acceptable_rhs_matrix<E2>::in_type,typename is_acceptable_rhs_matrix<E1>::in_type>(
-      is_acceptable_rhs_matrix<E1>::cast(v1), is_acceptable_rhs_matrix<E2>::cast(v2));
+     is_acceptable_rhs_matrix<E2>::cast(v2), is_acceptable_rhs_matrix<E1>::cast(v1));
 }
 
 } // namespace ctup

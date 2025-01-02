@@ -105,6 +105,7 @@ template <typename T>
 struct Storage {
 private:
   using Scalar= ctup::inner_type_t<T>; //NEW
+  static const bool matrix = is_Matrix_m<T>; //NEW
 
   // SparseEntry should be inaccessible from outside Storage
   struct SparseEntry {
@@ -126,6 +127,7 @@ private:
   };
 
 public:
+
   const size_t n_rows;
   const size_t n_cols;
 
@@ -230,11 +232,27 @@ public:
   }
 
   // meant to be used on RHS of an assignment statement
-  dyn_var<T> get_dyn_entry(size_t i, size_t j) {
+  dyn_var<T> get_dyn_entry(size_t i, size_t j) { //CHANGE
+    /*
+    if constexpr(matrix){
+      return _get(i, j).array();
+    }
+    else{
+      return _get(i, j);
+    }
+    */
     return _get(i, j);
   }
   // meant to be used on LHS of an assignment statement, with const storage
-  const dyn_var<T> get_dyn_entry(size_t i, size_t j) const {
+  const dyn_var<T> get_dyn_entry(size_t i, size_t j) const { //CHANGE
+    /*
+    if constexpr(matrix){
+      return _get(i, j).array();
+    }
+    else{
+      return _get(i, j);
+    }
+    */
     return _get(i, j);
   }
 
@@ -711,6 +729,8 @@ struct Matrix {
 
 template <typename T>
 struct Rotation : public Matrix<T> {
+  static const bool matrix = is_Matrix_m<T>; //NEW
+
   using Matrix<T>::storage;
 
   dyn_var<T> sinq; //CHANGE
@@ -950,6 +970,39 @@ struct Matrix_expr_add_sec : public Matrix_expr<T1> {
   }
 
   const builder::builder get_value() const override {
+    return ((dyn_var<T1>) (builder::cast) expr1.get_value()) + expr2.get_value();
+  }
+
+  const builder::builder get_value_at(size_t i, size_t j) const override {
+    return ((dyn_var<T1>) (builder::cast) expr1.get_value_at(i, j)) + expr2.get_value_at(i, j);
+  }
+
+  int is_nonzero(size_t i, size_t j) const override {
+    return expr1.is_nonzero(i, j) || expr2.is_nonzero(i, j);
+  }
+};
+
+template <typename T> //NEW
+struct Matrix_expr_add_third : public Matrix_expr<T> {
+  const struct Matrix_expr<T> &expr1;
+  const struct Matrix_expr<T> &expr2;
+
+  std::vector<size_t> expr_shape;
+
+  Matrix_expr_add_third(const struct Matrix_expr<T> &expr1, const struct Matrix_expr<T> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
     return expr1.get_value() + expr2.get_value();
   }
 
@@ -1035,10 +1088,14 @@ struct Matrix_expr_mul_sec : public Matrix_expr<T1> {
   const builder::builder get_value_at(size_t i, size_t j) const override { //DON'T LIKE IT
     const size_t inner_dim = expr1.get_expr_shape()[1];
     dyn_var<T1> sum;
-    sum.array() = 0; //CHANGE
+
+    //sum.array() = 0; //CHANGE
+    sum=0;
+
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-      sum.array() += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);//CHANGE
+      //sum.array() += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);//CHANGE
+      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
     }
     return sum;
   }
@@ -1054,6 +1111,57 @@ struct Matrix_expr_mul_sec : public Matrix_expr<T1> {
     return false;
   }
 
+};
+
+template <typename T> //NEW
+struct Matrix_expr_mul_third : public Matrix_expr<T> {
+  const struct Matrix_expr<T> &expr1;
+  const struct Matrix_expr<T> &expr2;
+
+  std::vector<size_t> expr_shape;
+
+  Matrix_expr_mul_third(const struct Matrix_expr<T> &expr1, const struct Matrix_expr<T> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1 = expr1.get_expr_shape();
+    std::vector<size_t> shape2 = expr2.get_expr_shape();
+    assertm(shape1[1] == shape2[0], "inner dim of matmul expr must match");
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape2[1]);
+  }
+
+  const std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  const builder::builder get_value() const override {
+    return expr1.get_value() * expr2.get_value();
+  }
+
+  const builder::builder get_value_at(size_t i, size_t j) const override {
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    dyn_var<T> sum = 0;
+    // k is inner_dim for matmul
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
+      if (block::isa<block::const_expr>(expr1.get_value_at(i, k).block_expr)) {
+        sum.array() += expr1.get_value_at(i, k) * ((dyn_var<T>) (builder::cast) expr2.get_value_at(k, j)).array();
+      }
+      else {
+        sum.array() += ((dyn_var<T>) (builder::cast) expr1.get_value_at(i, k)).array() * ((dyn_var<T>) (builder::cast) expr2.get_value_at(k, j)).array();
+      }
+    }
+    return sum;
+  }
+
+  int is_nonzero(size_t i, size_t j) const override {
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
+      // when summing up products of inner_dim, if any one product is nonzero
+      // then (i, j) is guaranteed to be nonzero.
+      if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
+        return true;
+    }
+    return false;
+  }
 };
 
 template <typename T>

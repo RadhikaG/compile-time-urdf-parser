@@ -29,7 +29,7 @@ builder::dyn_var<double(double)> cos = builder::as_global("cos");
 
 template <typename Scalar, int Rows_=Eigen::Dynamic, int Cols_=Eigen::Dynamic>
 struct EigenMatrix {
-  static constexpr const char* type_name = "Eigen::Matrix";
+  static constexpr const char* type_name = "Eigen::Array";
 
   static auto get_template_arg_types() {
     std::vector<block::type::Ptr> types;
