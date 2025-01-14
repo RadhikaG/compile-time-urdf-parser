@@ -1,0 +1,200 @@
+#include "backend.h"
+#include "matrix_layout.h"
+#include "matrix_operators.h"
+
+#include "blocks/c_code_generator.h"
+#include "builder/builder_context.h"
+#include "builder/dyn_var.h"
+#include "builder/forward_declarations.h"
+#include "builder/static_var.h"
+
+const size_t N_X_T = 3;
+
+const double data[N_X_T][36] = {
+  {1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0.686,0,1,0,0,-0.686,0,0.06,0,1,0,0,-0.06,0,0,0,1},
+  {0.707105,0.707108,0,0,0,0,-0.707108,0.707105,0,0,0,0,0,0,1,0,0,0,-0.0916596,0.0916593,-0.137886,0.707105,0.707108,0,-0.0916593,-0.0916596,0.228434,-0.707108,0.707105,0,0.259027,-0.0640272,0,0,0,1},
+  {1,0,0,0,0,0,0,4.89664e-12,-1,0,0,0,0,1,4.89664e-12,0,0,0,0,0.27035,0,1,0,0,-1.32381e-12,0.069,3.37868e-13,0,4.89664e-12,-1,-0.27035,-3.37868e-13,0.069,0,1,4.89664e-12}
+};
+
+using builder::dyn_var;
+using builder::static_var;
+
+namespace ctup {
+
+struct Xform : public matrix_layout<double> {
+  using matrix_layout<double>::set_entry_to_constant;
+  using matrix_layout<double>::set_entry_to_nonconstant;
+
+  dyn_var<double> sinq;
+  dyn_var<double> cosq;
+
+  static_var<int> joint_type;
+  static_var<int> joint_xform_axis;
+
+  Xform() : matrix_layout<double>(6, 6, ctup::TILED, ctup::EIGENMATRIX, ctup::UNCOMPRESSED) {}
+
+  void set_revolute_axis(char axis) {
+    assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
+    joint_xform_axis = axis;
+    joint_type = 'R';
+  }
+
+  void set_prismatic_axis(char axis) {
+    assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
+    joint_xform_axis = axis;
+    joint_type = 'P';
+  }
+
+  void jcalc(const dyn_var<double> &q_i) {
+    sinq = backend::sin(q_i);
+    cosq = backend::cos(q_i);
+
+    if (joint_type == 'R') {
+      if (joint_xform_axis == 'X') {
+        set_entry_to_nonconstant(1, 1, cosq);
+        set_entry_to_nonconstant(1, 2, sinq);
+        set_entry_to_nonconstant(2, 1, -sinq);
+        set_entry_to_nonconstant(2, 2, cosq);
+        
+        set_entry_to_nonconstant(1+3, 1+3, cosq);
+        set_entry_to_nonconstant(1+3, 2+3, sinq);
+        set_entry_to_nonconstant(2+3, 1+3, -sinq);
+        set_entry_to_nonconstant(2+3, 2+3, cosq);
+      }
+      else if (joint_xform_axis == 'Y') {
+        set_entry_to_nonconstant(0, 0, cosq);
+        set_entry_to_nonconstant(0, 2, -sinq);
+        set_entry_to_nonconstant(2, 0, sinq);
+        set_entry_to_nonconstant(2, 2, cosq);
+        
+        set_entry_to_nonconstant(0+3, 0+3, cosq);
+        set_entry_to_nonconstant(0+3, 2+3, -sinq);
+        set_entry_to_nonconstant(2+3, 0+3, sinq);
+        set_entry_to_nonconstant(2+3, 2+3, cosq);
+      }
+      else if (joint_xform_axis == 'Z') {
+        set_entry_to_nonconstant(0, 0, cosq);
+        set_entry_to_nonconstant(0, 1, sinq);
+        set_entry_to_nonconstant(1, 0, -sinq);
+        set_entry_to_nonconstant(1, 1, cosq);
+        // symm E
+        set_entry_to_nonconstant(0+3, 0+3, cosq);
+        set_entry_to_nonconstant(0+3, 1+3, sinq);
+        set_entry_to_nonconstant(1+3, 0+3, -sinq);
+        set_entry_to_nonconstant(1+3, 1+3, cosq);
+      }
+      else {
+        assert(false && "jcalc called on non joint xform or joint unset");
+      }
+    }
+    else if (joint_type == 'P') {
+      if (joint_xform_axis == 'X') {
+        set_entry_to_nonconstant(1, 2, q_i);
+        set_entry_to_nonconstant(2, 1, -q_i);
+      }
+      else if (joint_xform_axis == 'Y') {
+        set_entry_to_nonconstant(2, 0, q_i);
+        set_entry_to_nonconstant(0, 2, -q_i);
+      }
+      else if (joint_xform_axis == 'Z') {
+        set_entry_to_nonconstant(0, 1, q_i);
+        set_entry_to_nonconstant(1, 0, -q_i);
+      }
+    }
+  }
+};
+
+}
+
+/** helpers **/
+
+using ctup::Xform;
+
+builder::dyn_var<void(ctup::EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
+builder::dyn_var<void(char *)> print_string = builder::as_global("print_string");
+
+static void toEigen(dyn_var<ctup::EigenMatrix<double, 6, 6>> &mat, Xform &xform) {
+  static_var<int> r, c;
+
+  for (r = 0; r < 6; r = r + 1)
+    for (c = 0; c < 6; c = c + 1)
+      mat.coeffRef(r, c) = xform.get_entry(r, c);
+}
+
+static void print_Xmat(std::string prefix, Xform &xform) {
+  print_string(prefix.c_str());
+  print_matrix(xform.denseify());
+}
+
+/** helpers end **/
+
+static void set_X_T(Xform X_T[]) {
+  static_var<int> r;
+  static_var<int> c;
+
+  for (static_var<size_t> i = 1; i < N_X_T; i = i+1) {
+    Eigen::Matrix<double, 6, 6> pin_X_T(data[i]);
+
+    for (r = 0; r < 6; r = r + 1) {
+      for (c = 0; c < 6; c = c + 1) {
+        double entry = pin_X_T.coeffRef(c, r);
+        X_T[i].set_entry_to_constant(r, c, entry);
+      }
+    }
+  }
+}
+
+
+static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
+
+  Xform X_T[N_X_T];
+
+  set_X_T(X_T);
+
+  Xform X1, X2;
+
+  X1.set_revolute_axis('Z');
+  X1.jcalc(q(1));
+
+  X2 = X1 * X_T[1];
+
+  print_Xmat("us X1:", X1);
+  print_Xmat("us X_T[1]:", X_T[1]);
+  print_Xmat("us X2:", X2);
+
+  dyn_var<ctup::EigenMatrix<double, 6, 6>> final_ans;
+
+  toEigen(final_ans, X2);
+
+  return final_ans;
+}
+
+int main(int argc, char* argv[]) {
+  const std::string header_filename = (argc <= 1) ? "./fk_gen.h" : argv[1];
+  std::cout << header_filename << "\n";
+
+  std::ofstream of(header_filename);
+  block::c_code_generator codegen(of);
+
+  of << "// clang-format off\n\n";
+  of << "#include \"Eigen/Dense\"\n\n";
+  of << "#include <iostream>\n\n";
+  of << "namespace ctup_gen {\n\n";
+
+  of << "static void print_string(const char* str) {\n";
+  of << "  std::cout << str << \"\\n\";\n";
+  of << "}\n\n";
+
+  of << "template<typename Derived>\n";
+  of << "static void print_matrix(const Eigen::MatrixBase<Derived>& matrix) {\n";
+  of << "  std::cout << matrix << \"\\n\";\n";
+  of << "}\n\n";
+
+  builder::builder_context context;
+
+  auto ast = context.extract_function_ast(fk, "fk");
+  of << "static ";
+  block::c_code_generator::generate_code(ast, of, 0);
+
+  of << "}\n";
+}
