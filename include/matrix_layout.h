@@ -726,6 +726,25 @@ struct matrix_layout {
   void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) {
     m_storage->set_entry_to_nonconstant(i, j, entry);
   }
+
+  void set_identity() {
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        if (i == j)
+          set_entry_to_constant(i, j, 1);
+        else
+          set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
+
+  void set_zero() {
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
 };
 
 template <typename Scalar>

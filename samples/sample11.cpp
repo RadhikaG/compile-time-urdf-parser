@@ -27,6 +27,7 @@ template <typename Scalar>
 struct Xform : public matrix_layout<Scalar> {
   using matrix_layout<Scalar>::set_entry_to_constant;
   using matrix_layout<Scalar>::set_entry_to_nonconstant;
+  using matrix_layout<Scalar>::set_identity;
   using matrix_layout<Scalar>::operator=;
 
   dyn_var<Scalar> sinq;
@@ -50,6 +51,7 @@ struct Xform : public matrix_layout<Scalar> {
   }
 
   void jcalc(const dyn_var<Scalar> &q_i) {
+    set_identity();
     sinq = backend::sin(q_i);
     cosq = backend::cos(q_i);
 
