@@ -333,9 +333,9 @@ struct matrix_layout_expr {
     return !is_nonconstant(i, j);
   }
 
-  virtual const size_t* get_expr_shape() const {
+  virtual std::vector<size_t> get_expr_shape() const {
     trigger_abstract_method_assert();
-    return nullptr;
+    return std::vector<size_t>();
   }
 };
 
@@ -695,6 +695,22 @@ struct matrix_layout {
     return m_storage->denseify();
   }
 
+  bool is_zero(size_t i, size_t j) const {
+    return m_storage->is_zero(i, j);
+  }
+
+  bool is_constant(size_t i, size_t j) const {
+    return m_storage->is_constant(i, j);
+  }
+
+  bool is_nonzero(size_t i, size_t j) const {
+    return m_storage->is_nonzero(i, j);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const {
+    return m_storage->is_nonconstant(i, j);
+  }
+
   builder::builder get_entry(size_t i, size_t j) const {
     return m_storage->get_entry(i, j);
   }
@@ -715,11 +731,11 @@ struct matrix_layout {
 template <typename Scalar>
 struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
   const struct matrix_layout<Scalar> &m_mat;
-  size_t expr_shape[2];
+  std::vector<size_t> expr_shape;
 
   matrix_layout_expr_leaf(const struct matrix_layout<Scalar> &mat) : m_mat(mat) {
-    expr_shape[0] = m_mat.shape[0];
-    expr_shape[1] = m_mat.shape[1];
+    expr_shape.push_back(m_mat.shape[0]);
+    expr_shape.push_back(m_mat.shape[1]);
   }
 
   const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
@@ -730,11 +746,11 @@ struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
     return m_mat.get_entry(i, j);
   }
 
-  const Scalar gen_constant_entry_at(size_t i, size_t j) const override {
+  Scalar gen_constant_entry_at(size_t i, size_t j) const override {
     return m_mat.get_constant_entry(i, j);
   }
   
-  const size_t* get_expr_shape() const override {
+  std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
@@ -759,18 +775,18 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
 
   using matrix_layout_expr<Scalar>::is_constant;
 
-  size_t expr_shape[2];
+  std::vector<size_t> expr_shape;
 
   matrix_layout_expr_mul(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
       : expr1(expr1), expr2(expr2) {
-    size_t shape1[2], shape2[2];
+    std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
     shape2 = expr2.get_expr_shape();
 
     assert(shape1[1] == shape2[0] && "inner dim of matmul expr must match");
 
-    expr_shape[0] = shape1[0];
-    expr_shape[1] = shape2[1];
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape2[1]);
   }
 
   const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
@@ -817,7 +833,7 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
     }
   }
   
-  const size_t* get_expr_shape() const override {
+  std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
@@ -861,18 +877,18 @@ struct matrix_layout_expr_add : public matrix_layout_expr<Scalar> {
   const struct matrix_layout_expr<Scalar> &expr1;
   const struct matrix_layout_expr<Scalar> &expr2;
 
-  size_t expr_shape[2];
+  std::vector<size_t> expr_shape;
 
   matrix_layout_expr_add(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
       : expr1(expr1), expr2(expr2) {
-    size_t shape1[2], shape2[2];
+    std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
     shape2 = expr2.get_expr_shape();
 
-    assert(shape1[0] == shape2[0] && shape1[1] && shape2[1] && "shapes must match");
+    assert(shape1[0] == shape2[0] && shape1[1] == shape2[1] && "shapes must match");
 
-    expr_shape[0] = shape1[0];
-    expr_shape[1] = shape1[1];
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
   }
 
   const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
@@ -897,7 +913,7 @@ struct matrix_layout_expr_add : public matrix_layout_expr<Scalar> {
     }
   }
   
-  const size_t* get_expr_shape() const override {
+  std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 
@@ -919,7 +935,7 @@ template <typename Scalar>
 struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Scalar> {
   const struct matrix_layout_expr<Scalar> &expr1;
 
-  size_t expr_shape[2];
+  std::vector<size_t> expr_shape;
 
   matrix_layout_expr_unary_minus(const struct matrix_layout_expr<Scalar> &expr1)
       : expr1(expr1) {
@@ -945,7 +961,7 @@ struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Scalar> {
     }
   }
   
-  const size_t* get_expr_shape() const override {
+  std::vector<size_t> get_expr_shape() const override {
     return expr_shape;
   }
 

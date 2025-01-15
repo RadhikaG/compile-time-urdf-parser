@@ -112,6 +112,7 @@ int main(int argc, char* argv[]) {
   builder::builder_context context;
 
   auto ast = context.extract_function_ast(fk, "fk");
+  of << "static ";
   block::c_code_generator::generate_code(ast, of, 0);
 
   of << "}\n";

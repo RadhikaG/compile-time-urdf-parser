@@ -8,6 +8,8 @@
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
 
+#include <fstream>
+
 const size_t N_X_T = 3;
 
 const double data[N_X_T][36] = {
@@ -21,17 +23,19 @@ using builder::static_var;
 
 namespace ctup {
 
-struct Xform : public matrix_layout<double> {
-  using matrix_layout<double>::set_entry_to_constant;
-  using matrix_layout<double>::set_entry_to_nonconstant;
+template <typename Scalar>
+struct Xform : public matrix_layout<Scalar> {
+  using matrix_layout<Scalar>::set_entry_to_constant;
+  using matrix_layout<Scalar>::set_entry_to_nonconstant;
+  using matrix_layout<Scalar>::operator=;
 
-  dyn_var<double> sinq;
-  dyn_var<double> cosq;
+  dyn_var<Scalar> sinq;
+  dyn_var<Scalar> cosq;
 
   static_var<int> joint_type;
   static_var<int> joint_xform_axis;
 
-  Xform() : matrix_layout<double>(6, 6, ctup::TILED, ctup::EIGENMATRIX, ctup::UNCOMPRESSED) {}
+  Xform() : matrix_layout<Scalar>(6, 6, ctup::TILED, ctup::EIGENMATRIX, ctup::UNCOMPRESSED) {}
 
   void set_revolute_axis(char axis) {
     assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
@@ -45,7 +49,7 @@ struct Xform : public matrix_layout<double> {
     joint_type = 'P';
   }
 
-  void jcalc(const dyn_var<double> &q_i) {
+  void jcalc(const dyn_var<Scalar> &q_i) {
     sinq = backend::sin(q_i);
     cosq = backend::cos(q_i);
 
@@ -109,11 +113,13 @@ struct Xform : public matrix_layout<double> {
 /** helpers **/
 
 using ctup::Xform;
+using ctup::EigenMatrix;
 
-builder::dyn_var<void(ctup::EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
+builder::dyn_var<void(EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
 builder::dyn_var<void(char *)> print_string = builder::as_global("print_string");
 
-static void toEigen(dyn_var<ctup::EigenMatrix<double, 6, 6>> &mat, Xform &xform) {
+template <typename Scalar, int Rows_, int Cols_>
+static void toEigen(dyn_var<EigenMatrix<Scalar, Rows_, Cols_>> &mat, Xform<Scalar> &xform) {
   static_var<int> r, c;
 
   for (r = 0; r < 6; r = r + 1)
@@ -121,19 +127,21 @@ static void toEigen(dyn_var<ctup::EigenMatrix<double, 6, 6>> &mat, Xform &xform)
       mat.coeffRef(r, c) = xform.get_entry(r, c);
 }
 
-static void print_Xmat(std::string prefix, Xform &xform) {
+template <typename Scalar>
+static void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
   print_string(prefix.c_str());
   print_matrix(xform.denseify());
 }
 
 /** helpers end **/
 
-static void set_X_T(Xform X_T[]) {
+template <typename Scalar>
+static void set_X_T(Xform<Scalar> X_T[]) {
   static_var<int> r;
   static_var<int> c;
 
   for (static_var<size_t> i = 1; i < N_X_T; i = i+1) {
-    Eigen::Matrix<double, 6, 6> pin_X_T(data[i]);
+    Eigen::Matrix<Scalar, 6, 6> pin_X_T(data[i]);
 
     for (r = 0; r < 6; r = r + 1) {
       for (c = 0; c < 6; c = c + 1) {
@@ -147,11 +155,11 @@ static void set_X_T(Xform X_T[]) {
 
 static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
 
-  Xform X_T[N_X_T];
+  Xform<double> X_T[N_X_T];
 
   set_X_T(X_T);
 
-  Xform X1, X2;
+  Xform<double> X1, X2;
 
   X1.set_revolute_axis('Z');
   X1.jcalc(q(1));
