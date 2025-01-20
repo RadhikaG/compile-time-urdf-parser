@@ -15,4 +15,5 @@ LIBRARY_SRCS=$(wildcard $(SRC_DIR)/*.cpp)
 LIBRARY_OBJS=$(subst $(SRC_DIR),$(BUILD_DIR),$(LIBRARY_SRCS:.cpp=.o))
 
 EIGEN_DIR=$(PWD)/deps/eigen
+YAML_DIR = /usr/include/yaml-cpp
 INCLUDES=$(wildcard $(INCLUDE_DIR)/*.h)

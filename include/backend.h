@@ -1,5 +1,6 @@
 #ifndef BACKEND_H
 #define BACKEND_H
+
 #include "Eigen/Dense"
 #include "Eigen/src/Core/util/Constants.h"
 #include "blocks/block_visitor.h"
@@ -17,11 +18,6 @@ using builder::dyn_var;
 using builder::static_var;
 
 namespace ctup {
-
-namespace backend {
-builder::dyn_var<double(double)> sin = builder::as_global("sin");
-builder::dyn_var<double(double)> cos = builder::as_global("cos");
-} // namespace backend
 
 //static const char eigen_matrix_t_name[] = "Eigen::Matrix";
 //template <typename Scalar>
@@ -53,6 +49,42 @@ struct EigenMatrix {
   }
 };
 
+template <typename Scalar, int Rows_, int Cols_>
+struct BlazeStaticMatrix {
+  static constexpr const char* type_name = "blaze::StaticMatrix";
+
+  static auto get_template_arg_types() {
+    std::vector<block::type::Ptr> types;
+
+    auto d1 = std::make_shared<block::named_type>();
+    auto d2 = std::make_shared<block::named_type>();
+    d1->type_name = std::to_string(Rows_);
+    d2->type_name = std::to_string(Cols_);
+
+    types.push_back(dyn_var<Scalar>::create_block_type());
+    types.push_back(d1);
+    types.push_back(d2);
+
+    return types;
+  }
+};
+
+template <typename Scalar, int Dim>
+struct BlazeStaticVector {
+  static constexpr const char* type_name = "blaze::StaticVector";
+
+  static auto get_template_arg_types() {
+    std::vector<block::type::Ptr> types;
+
+    auto d1 = std::make_shared<block::named_type>();
+    d1->type_name = std::to_string(Dim);
+
+    types.push_back(dyn_var<Scalar>::create_block_type());
+    types.push_back(d1);
+
+    return types;
+  }
+};
 
 } // namespace ctup
 
@@ -136,6 +168,91 @@ public:
   dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> array = as_member(this, "array");
 };
 
+
+template <typename Scalar, int Rows_, int Cols_>
+class dyn_var<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>> : public dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>> {
+public:
+  typedef dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>> super;
+  using super::super;
+  using super::operator=;
+  builder operator=(const dyn_var<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>> &t) {
+    return (*this) = (builder)t;
+  }
+
+  void set_matrix_fixed_size(int _n_rows, int _n_cols) {
+    auto type = block::to<block::named_type>(this->block_var->var_type);
+    auto d1 = block::to<block::named_type>(type->template_args[1]);
+    auto d2 = block::to<block::named_type>(type->template_args[2]);
+    d1->type_name = std::to_string(_n_rows);
+    d2->type_name = std::to_string(_n_cols);
+  }
+
+  dyn_var() : dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>>() {}
+
+  dyn_var(size_t _n_rows, size_t _n_cols) : dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>>() {
+    set_matrix_fixed_size(_n_rows, _n_cols);
+  }
+
+  dyn_var(const dyn_var<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>> &t)
+      : dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>>((builder)t) {
+    this->block_var->var_type = block::clone(t.block_var->var_type);
+  }
+
+  // so indexing into matrix types returns a dyn_var<Scalar>
+  dyn_var<Scalar> operator[](const builder &bt) {
+    return (dyn_var<Scalar>)(cast)this->dyn_var_impl<ctup::BlazeStaticMatrix<Scalar, Rows_, Cols_>>::operator[](bt);
+  }
+};
+
+template <typename Scalar, int Dim>
+class dyn_var<ctup::BlazeStaticVector<Scalar, Dim>> : public dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>> {
+public:
+  typedef dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>> super;
+  using super::super;
+  using super::operator=;
+  builder operator=(const dyn_var<ctup::BlazeStaticVector<Scalar, Dim>> &t) {
+    return (*this) = (builder)t;
+  }
+
+  void set_vector_fixed_size(int dim) {
+    auto type = block::to<block::named_type>(this->block_var->var_type);
+    auto d1 = block::to<block::named_type>(type->template_args[1]);
+    d1->type_name = std::to_string(dim);
+  }
+
+  dyn_var() : dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>>() {}
+
+  dyn_var(size_t dim) : dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>>() {
+    set_vector_fixed_size(dim);
+  }
+
+  dyn_var(const dyn_var<ctup::BlazeStaticVector<Scalar, Dim>> &t)
+      : dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>>((builder)t) {
+    this->block_var->var_type = block::clone(t.block_var->var_type);
+  }
+
+  // so indexing into Vector types returns a dyn_var<Scalar>
+  dyn_var<Scalar> operator[](const builder &bt) {
+    return (dyn_var<Scalar>)(cast)this->dyn_var_impl<ctup::BlazeStaticVector<Scalar, Dim>>::operator[](bt);
+  }
+};
+
 } // namespace builder
+
+namespace ctup{
+  namespace backend {
+  builder::dyn_var<double(double)> sin = builder::as_global("sin");
+  builder::dyn_var<double(double)> cos = builder::as_global("cos");
+
+  template<typename Scalar, int Dim>
+  builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> min = builder::as_global("min");
+
+  template<typename Scalar, int Dim>
+  builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> max = builder::as_global("max");
+
+  template<typename Scalar, int Dim>
+  builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(void)> abs = builder::as_global("abs");
+  } // namespace backend
+}
 
 #endif
