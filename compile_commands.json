@@ -1,0 +1,34 @@
+[
+    {
+        "arguments": [
+            "g++",
+            "-c",
+            "-std=c++17",
+            "-Wall",
+            "-Wextra",
+            "-Wno-unused-parameter",
+            "-Wno-missing-field-initializers",
+            "-Wmissing-declarations",
+            "-Woverloaded-virtual",
+            "-Wno-deprecated",
+            "-Wdelete-non-virtual-dtor",
+            "-Werror",
+            "-Wno-vla",
+            "-pedantic-errors",
+            "-Wno-unused-but-set-variable",
+            "-Wno-unused-variable",
+            "-O3",
+            "-I/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser/deps/buildit/include",
+            "-I/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser/deps/buildit/build/gen_headers/",
+            "-I",
+            "/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser/include",
+            "-I",
+            "/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser/deps/eigen",
+            "-o",
+            "/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser/build/samples/sample14.o",
+            "samples/sample14.cpp"
+        ],
+        "directory": "/home/marc/ctup_stuff/ctup-experiments/deps/compile-time-urdf-parser",
+        "file": "samples/sample14.cpp"
+    }
+]

@@ -31,7 +31,7 @@ using builder::dyn_var;
 using builder::static_var;
 
 using ctup::Xform;
-using ctup::Packet;
+using ctup::Xform;
 
 static void set_X_T(Xform<double> X_T[]) {
   static_var<int> r;
@@ -63,29 +63,34 @@ static void set_X_T(Xform<double> X_T[]) {
   }
 }
 
-static dyn_var<ctup::EigenMatrix<double>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
+static dyn_var<ctup::EigenMatrix<double,16,36>> fk(dyn_var<ctup::EigenMatrix<double>> q) {
   Xform<double> X_T[N_X_T];
 
   static_var<int> r;
   static_var<int> c;
 
   set_X_T(X_T);
+  
+  Xform<ctup::EigenMatrix<double,16,1>> X_1;
+  Xform<ctup::EigenMatrix<double,16,1>> X_2;
+  
+  dyn_var<ctup::BlazeStaticMatrix<double,6,6>> a;
+  dyn_var<double> a2=a(0,0);
 
-  Packet<ctup::EigenMatrix<double,16,1>> X_1;
-  Packet<ctup::EigenMatrix<double,16,1>> X_2;
+  dyn_var<ctup::BlazeStaticVector<double,16>> a3;
+  dyn_var<double> a9 = a3[0];
 
-  X1.set_revolute_axis('Z');
-  X1.jcalc(q(1));
+  a2=a2*a9;
 
-  X2 = X1 * X_T[1];
-
-  print_Xmat("us X1:", X1);
-  print_Xmat("us X_T[1]:", X_T[1]);
-  print_Xmat("us X2:", X2);
-
-  dyn_var<ctup::EigenMatrix<double>> final_ans;
-
-  toEigen(final_ans, X2);
+  X_1.set_revolute_axis('Z');
+  
+  X_1.jcalc(q.col(1));
+  
+  X_2 = X_1 * X_T[1];
+  
+  dyn_var<ctup::EigenMatrix<double,16,36>> final_ans;
+  
+  //toEigen(final_ans, X_2); //REVIEW
 
   return final_ans;
 }
