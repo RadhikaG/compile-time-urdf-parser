@@ -19,6 +19,14 @@ using builder::static_var;
 
 namespace ctup {
 
+struct zero_cst_status_checkable {
+  virtual bool is_nonzero(size_t i, size_t j) const = 0;
+  virtual bool is_zero(size_t i, size_t j) const = 0;
+  virtual bool is_nonconstant(size_t i, size_t j) const = 0;
+  virtual bool is_constant(size_t i, size_t j) const = 0;
+  virtual ~zero_cst_status_checkable() = default;
+};
+
 template <typename Scalar>
 struct inner_type { 
   using type = Scalar;
@@ -70,7 +78,7 @@ struct sparse_entry {
   static_var<inner_type_t<Prim>> static_entry; // fill value
 };
 
-struct in_memory_sparsity_repr {
+struct in_memory_sparsity_repr : public zero_cst_status_checkable {
   typedef std::shared_ptr<in_memory_sparsity_repr> Ptr;
 
   size_t n_rows;
@@ -103,18 +111,19 @@ struct in_memory_sparsity_repr {
     return -1;
   }
 
-  virtual bool is_nonzero(size_t i, size_t j) const {
+  virtual bool is_nonzero(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
 
-  virtual bool is_zero(size_t i, size_t j) const { return !is_nonzero(i, j); };
+  virtual bool is_zero(size_t i, size_t j) const override { return !is_nonzero(i, j); };
 
-  virtual bool is_nonconstant(size_t i, size_t j) const {
+  virtual bool is_nonconstant(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
-  virtual bool is_constant(size_t i, size_t j) const { return !is_nonconstant(i, j); };
+
+  virtual bool is_constant(size_t i, size_t j) const override { return !is_nonconstant(i, j); };
 
   virtual void mark_constant(size_t i, size_t j, bool is_nonzero) { trigger_abstract_method_assert(); }
   virtual void mark_nonconstant(size_t i, size_t j) { trigger_abstract_method_assert(); }
@@ -287,7 +296,7 @@ struct coo_repr : public in_memory_sparsity_repr {
 };
 
 template <typename Scalar>
-struct matrix_layout_expr {
+struct matrix_layout_expr : public zero_cst_status_checkable {
   void trigger_abstract_method_assert() const {
     assert(false && "abstract matrix_layout_expr method call");
   }
@@ -315,21 +324,21 @@ struct matrix_layout_expr {
     return false;
   }
 
-  virtual bool is_nonzero(size_t i, size_t j) const {
+  virtual bool is_nonzero(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
 
-  virtual bool is_nonconstant(size_t i, size_t j) const {
+  virtual bool is_nonconstant(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
 
-  virtual bool is_zero(size_t i, size_t j) const {
+  virtual bool is_zero(size_t i, size_t j) const override {
     return !is_nonzero(i, j);
   }
 
-  virtual bool is_constant(size_t i, size_t j) const {
+  virtual bool is_constant(size_t i, size_t j) const override {
     return !is_nonconstant(i, j);
   }
 
@@ -340,7 +349,7 @@ struct matrix_layout_expr {
 };
 
 template <typename Scalar>
-struct storage {
+struct storage : public zero_cst_status_checkable {
   typedef std::shared_ptr<storage<Scalar>> Ptr;
 
   size_t n_rows;
@@ -383,21 +392,21 @@ struct storage {
     return -1;
   }
 
-  virtual bool is_zero(size_t i, size_t j) const {
+  virtual bool is_zero(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
 
-  virtual bool is_nonzero(size_t i, size_t j) const {
+  virtual bool is_nonzero(size_t i, size_t j) const override {
     return !is_zero(i, j);
   }
 
-  virtual bool is_constant(size_t i, size_t j) const {
+  virtual bool is_constant(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return false;
   }
 
-  virtual bool is_nonconstant(size_t i, size_t j) const {
+  virtual bool is_nonconstant(size_t i, size_t j) const override {
     return !is_constant(i, j);
   }
 
@@ -624,22 +633,21 @@ struct eigen_matrix_storage : public storage<Scalar> {
 };
 
 template <typename Scalar>
-struct matrix_layout {
+struct matrix_layout : public zero_cst_status_checkable {
+  typedef std::shared_ptr<matrix_layout<Scalar>> Ptr;
+
   typename storage<Scalar>::Ptr m_storage = nullptr;
 
-  bool is_batched;
-  iteration_order iter_order;
-  backend_mem_representation backend_mem_repr;
-  compression compress;
-  size_t shape[2];
+  const bool is_batched;
+  const iteration_order iter_order;
+  const backend_mem_representation backend_mem_repr;
+  const compression compress;
+  const size_t shape[2];
 
   matrix_layout(size_t n_rows, size_t n_cols, iteration_order _iter, 
           backend_mem_representation _bmr, compression _comp, bool _ib=false) :
-      is_batched(_ib), iter_order(_iter), backend_mem_repr(_bmr), compress(_comp)
+      is_batched(_ib), iter_order(_iter), backend_mem_repr(_bmr), compress(_comp), shape{n_rows, n_cols}
   {
-    shape[0] = n_rows;
-    shape[1] = n_cols;
-
     if (!is_batched) {
       switch(backend_mem_repr) {
         case UNROLLED:
@@ -691,23 +699,31 @@ struct matrix_layout {
     }
   }
 
+  size_t get_n_rows() const {
+    return shape[0];
+  }
+
+  size_t get_n_cols() const {
+    return shape[1];
+  }
+
   dyn_var<EigenMatrix<Scalar>> denseify() const { 
     return m_storage->denseify();
   }
 
-  bool is_zero(size_t i, size_t j) const {
+  bool is_zero(size_t i, size_t j) const override {
     return m_storage->is_zero(i, j);
   }
 
-  bool is_constant(size_t i, size_t j) const {
+  bool is_constant(size_t i, size_t j) const override {
     return m_storage->is_constant(i, j);
   }
 
-  bool is_nonzero(size_t i, size_t j) const {
+  bool is_nonzero(size_t i, size_t j) const override {
     return m_storage->is_nonzero(i, j);
   }
 
-  bool is_nonconstant(size_t i, size_t j) const {
+  bool is_nonconstant(size_t i, size_t j) const override {
     return m_storage->is_nonconstant(i, j);
   }
 
