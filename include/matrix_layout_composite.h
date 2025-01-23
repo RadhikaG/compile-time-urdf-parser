@@ -45,12 +45,12 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
   }
 
   virtual bool is_block_zero(size_t b_i, size_t b_j) const {
-    !is_block_zero(b_i, b_j);
+    return !is_block_zero(b_i, b_j);
   }
 
-  virtual matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const {
+  virtual const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const {
     trigger_abstract_method_assert();
-    return matrix_layout_expr<Scalar>();
+    return *new matrix_layout_expr<Scalar>();
   }
 
   virtual std::vector<size_t> get_block_expr_shape(size_t b_i, size_t b_j) const {
@@ -110,6 +110,7 @@ struct blocked_layout : public zero_cst_status_checkable {
           next_block_start_r = shape[0];
         else
           next_block_start_r = row_partitions[b_i+1];
+
         if (b_j == n_blocks_c-2)
           next_block_start_c = shape[1];
         else
@@ -147,9 +148,9 @@ struct blocked_layout : public zero_cst_status_checkable {
           return std::make_pair(b_i, b_j);
         }
       }
-      assert(false && "we should've found some block");
-      return std::make_pair(0, 0);
     }
+    assert(false && "we should've found some block");
+    return std::make_pair(0, 0);
   }
 
   std::pair<size_t, size_t> get_relative_idx_wrt_block(size_t i, size_t j) const {
@@ -173,7 +174,7 @@ struct blocked_layout : public zero_cst_status_checkable {
       return true;
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
-    return block_idx_to_block[block_idx]->is_zero(rel_idx.first, rel_idx.second);
+    return block_idx_to_block.at(block_idx)->is_zero(rel_idx.first, rel_idx.second);
   }
 
   bool is_constant(size_t i, size_t j) const override {
@@ -184,7 +185,7 @@ struct blocked_layout : public zero_cst_status_checkable {
       return true;
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
-    return block_idx_to_block[block_idx]->is_constant(rel_idx.first, rel_idx.second);
+    return block_idx_to_block.at(block_idx)->is_constant(rel_idx.first, rel_idx.second);
   }
 
   bool is_nonzero(size_t i, size_t j) const override {
@@ -203,7 +204,7 @@ struct blocked_layout : public zero_cst_status_checkable {
       return 0;
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
-    return block_idx_to_block[block_idx]->get_entry(rel_idx.first, rel_idx.second);
+    return block_idx_to_block.at(block_idx)->get_entry(rel_idx.first, rel_idx.second);
   }
 
   Scalar get_constant_entry(size_t i, size_t j) const {
@@ -214,13 +215,13 @@ struct blocked_layout : public zero_cst_status_checkable {
       return 0;
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
-    return block_idx_to_block[block_idx]->get_constant_entry(rel_idx.first, rel_idx.second);
+    return block_idx_to_block.at(block_idx)->get_constant_entry(rel_idx.first, rel_idx.second);
   }
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) { 
     auto block_idx = get_block_idx(i, j);
 
-    assert(!is_block_set(block_idx.first, block_idx.second) && 
+    assert(is_block_set(block_idx.first, block_idx.second) && 
         "must have inner matrix layout associated with block");
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
@@ -230,11 +231,22 @@ struct blocked_layout : public zero_cst_status_checkable {
   void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) {
     auto block_idx = get_block_idx(i, j);
 
-    assert(!is_block_set(block_idx.first, block_idx.second) && 
+    assert(is_block_set(block_idx.first, block_idx.second) && 
         "must have inner matrix layout associated with block");
 
     auto rel_idx = get_relative_idx_wrt_block(i, j);
     block_idx_to_block[block_idx]->set_entry_to_nonconstant(rel_idx.first, rel_idx.second, entry);
+  }
+
+  const dyn_var<EigenMatrix<Scalar>> denseify() {
+    dyn_var<EigenMatrix<Scalar>> mat;
+    mat.set_matrix_fixed_size(shape[0], shape[1]);
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        mat.coeffRef(i, j) = get_entry(i, j);
+      }
+    }
+    return mat;
   }
 
   void operator=(const blocked_layout_expr<Scalar> &rhs) {
@@ -245,8 +257,11 @@ struct blocked_layout : public zero_cst_status_checkable {
 
           auto block_ptr = block_idx_to_block[std::make_pair(b_i, b_j)];
 
+          // future todo: RHS should be able to set block shapes of LHS in the future
+          // LHS in the future should be any generic matrix that can have blocks
+          // propagated from RHS
           assert(block_ptr->shape[0] == rhs.get_block_expr_shape(b_i, b_j)[0] && \
-              block_ptr[b_i][b_j]->shape[1] == rhs.get_block_expr_shape(b_i, b_j)[1] &&
+              block_ptr->shape[1] == rhs.get_block_expr_shape(b_i, b_j)[1] &&
               "block shape of LHS and RHS must be same");
 
           *block_ptr = rhs.gen_block_expr(b_i, b_j);
@@ -284,8 +299,11 @@ struct blocked_layout_expr_leaf : public blocked_layout_expr<Scalar> {
   }
 
   const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const override {
-    // todo check null
-    return m_mat.block_idx_to_block[b_i][b_j];
+    // future todo: this should return a matrix_layout of zeros
+    assert(m_mat.is_block_set(b_i, b_j) && 
+            "(b_i, b_j) has no inner matrix_layout associated with it because it is zero, \
+            check if block is nonzero before calling gen_block_expr");
+    return *new matrix_layout_expr_leaf<Scalar>(*m_mat.block_idx_to_block.at(std::make_pair(b_i, b_j)));
   }
 };
 
@@ -317,23 +335,39 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
     for (static_var<size_t> b_k = 0; b_k < inner_dim; b_k = b_k + 1) {
       // when summing up products of inner_dim, if any one product is nonzero
       // then (i, j) is guaranteed to be nonzero.
-      if (expr1.is_nonzero(b_i, b_k) && expr2.is_nonzero(b_k, b_j))
+      if (expr1.is_block_nonzero(b_i, b_k) && expr2.is_block_nonzero(b_k, b_j))
         return true;
     }
     return false;
   }
 
   std::vector<size_t> get_block_expr_shape(size_t b_i, size_t b_j) const override {
-    // todo recurse shape
-    return {expr1.get_block_expr_shape(b_i, block_shape.second};
+    std::vector<size_t> shape1;
+    std::vector<size_t> shape2;
+
+    const size_t inner_dim = expr1.get_expr_shape()[1];
+    for (static_var<size_t> b_k = 0; b_k < inner_dim; b_k = b_k + 1) {
+      shape1 = expr1.get_block_expr_shape(b_i, b_k);
+      shape2 = expr2.get_block_expr_shape(b_k, b_j);
+      assert(shape1[1] == shape2[0] && "sub block inner dims must match, bad blocked partitions");
+    }
+    return {shape1[0], shape2[1]};
   }
 
   const matrix_layout_expr<Scalar> &gen_mac_chain_recurse(size_t b_i, size_t b_j, size_t b_k) const {
+    // check block matmul validity
+    std::vector<size_t> shape1 = expr1.get_block_expr_shape(b_i, b_k);
+    std::vector<size_t> shape2 = expr2.get_block_expr_shape(b_k, b_j);
+    assert(shape1[1] == shape2[0] && "sub block inner dims must match, bad blocked partitions");
+
+    // future todo: handle returning block of zeros
+    assert(!(expr1.is_block_zero(b_i, b_k) || expr2.is_block_zero(b_k, b_j)) && 
+        "should only be called when we know resulting expr is nonzero");
+
     if (b_k == expr1.get_expr_shape()[1])
       return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j);
     else
       return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j) + gen_mac_chain_recurse(b_i, b_j, b_k+1);
-
   }
 
   const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const override {
