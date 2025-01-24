@@ -31,7 +31,9 @@ struct Translation : public matrix_layout<Scalar> {
   using matrix_layout<Scalar>::set_entry_to_constant;
   using matrix_layout<Scalar>::set_entry_to_nonconstant;
 
-  Translation() : matrix_layout<Scalar>(3, 3, SPARSE, UNROLLED, UNCOMPRESSED) {}
+  Translation() : matrix_layout<Scalar>(3, 3, SPARSE, UNROLLED, UNCOMPRESSED) {
+    matrix_layout<Scalar>::set_zero();
+  }
 
   dyn_var<Scalar> x;
   dyn_var<Scalar> y;
