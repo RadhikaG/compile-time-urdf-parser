@@ -15,6 +15,7 @@
 #include "builder/lib/utils.h"
 
 #include <yaml-cpp/yaml.h>
+#include <tinyxml2.h>
 
 #include "Eigen/Dense"
 #include <Eigen/src/Core/IO.h>
@@ -30,13 +31,6 @@ using builder::static_var;
 
 //template <typename T>
 //using vector_t = builder::name<vector_t_name, T>;
-
-template <typename T>
-struct vector_t: public builder::custom_type<T> {
-	static constexpr const char* type_name = "std::vector";
-	typedef T dereference_type;
-	dyn_var<void(int)> size = builder::with_name("size");
-};
 
 struct Sphere {
     double center_x;
@@ -82,11 +76,12 @@ struct Envir_Objects{
     std::vector<Box> boxs;
 };
 
+
+
 static dyn_var<int> Sphere_Environment_Collision(
-  const Envir_Objects& obj,
-  dyn_var<ctup::BlazeStaticVector<double,16>> ax, dyn_var<ctup::BlazeStaticVector<double,16>> ay, dyn_var<ctup::BlazeStaticVector<double,16>> az, dyn_var<ctup::BlazeStaticVector<double,16>> ar,
-  dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>> bx, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>> by, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>> bz, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>> br)
-  {
+const Envir_Objects& obj,
+dyn_var<ctup::BlazeStaticVector<double,16>&> ax, dyn_var<ctup::BlazeStaticVector<double,16>&> ay, dyn_var<ctup::BlazeStaticVector<double,16>&> az, dyn_var<ctup::BlazeStaticVector<double,16>&> ar,
+dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>&> bx, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>&> by, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>&> bz, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>&> br) {
   dyn_var<int> res=false;
   for(static_var<size_t> l=0;l<std::size(obj.speheres);l=l+1){
     const Sphere& sphere=obj.speheres[l];
@@ -224,9 +219,44 @@ static dyn_var<int> Sphere_Environment_Collision(
   return 0;
 }
 
-//------------------//
-//----READ YAML----//
-//----------------//
+static dyn_var<double> Robot_Collision(const tinyxml2::XMLElement* root_one_sph){
+
+  std::vector<double> result;
+
+  for (const tinyxml2::XMLElement* joint = root_one_sph->FirstChildElement("joint"); joint != nullptr; joint = joint->NextSiblingElement("joint")) {
+    // Get the child link name from the <child> tag
+    const tinyxml2::XMLElement* child = joint->FirstChildElement("child");
+    if (child) {
+      const char* child_link_name = child->Attribute("link");
+
+      // Find the <link> element matching the child link name
+      static_var<int> found=false;
+      for (const tinyxml2::XMLElement* link = root_one_sph->FirstChildElement("link"); link != nullptr && not(found); link = link->NextSiblingElement("link")) {
+        const char* link_name = link->Attribute("name");
+        if (link_name && child_link_name && std::string(link_name) == child_link_name) {
+          // Get the <collision> elements inside the child link
+          for (const tinyxml2::XMLElement* collision = link->FirstChildElement("collision"); collision != nullptr; collision = collision->NextSiblingElement("collision")) {
+              const tinyxml2::XMLElement* origin = collision->FirstChildElement("origin");
+              if (origin) {
+                const char* xyz = origin->Attribute("xyz");
+
+                std::string token;
+                std::istringstream ss(xyz);
+                while (std::getline(ss, token, ' ')) {
+                  result.push_back(std::stod(token));
+                }
+              }
+          }
+          found=true; // Stop looking for the child link once found
+        }
+      }
+    }
+  }
+  dyn_var<ctup::BlazeStaticVector<double,16>> a; 
+  dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>> b; 
+  ctup::backend::Sphere_Environment_Collision(a,a,a,a,b,b,b,b);
+  return result[0];
+}
 
 struct Primitive {
     std::string type;
@@ -260,16 +290,15 @@ static void parseCollisionObjects(const YAML::Node& collisionObjectsNode, std::v
         objects.push_back(obj);
     }
 }
-//------------------//
-//----READ YAML----//
-//----------------//
 
 int main(int argc, char* argv[]) {
-    const std::string yaml_filename = argv[1];
-    std::cout << yaml_filename << "\n";
-    //--------------------------
+
+   //--------------------------
     //LOAD YAML FILE
     //--------------------------
+    const std::string yaml_filename = argv[1];
+    std::cout << yaml_filename << "\n";
+
     YAML::Node root = YAML::LoadFile(yaml_filename);
     // Parse collision objects
     std::vector<CollisionObject> collisionObjects;
@@ -344,19 +373,48 @@ int main(int argc, char* argv[]) {
     //--------------------------
 
 
-    const std::string header_filename = (argc <= 2) ? "./fk_gen.h" : argv[2];
+    //--------------------------
+    //LOAD URDF FILE
+    //--------------------------
+
+    // Path to the URDF file
+    const char* urdf_filename = argv[2];
+    std::cout << urdf_filename << "\n";
+
+    // Load the URDF file
+    tinyxml2::XMLDocument doc;
+    if (doc.LoadFile(urdf_filename) != tinyxml2::XML_SUCCESS) {
+        std::cerr << "Failed to load URDF file: " << urdf_filename << std::endl;
+        return -1;
+    }
+
+    // Get the root element
+    tinyxml2::XMLElement* root_one_sph = doc.RootElement();
+    if (!root_one_sph) {
+        std::cerr << "Invalid URDF structure." << std::endl;
+        return -1;
+    }
+
+    //--------------------------
+    //END LOAD URDF FILE
+    //--------------------------
+    const std::string header_filename = (argc <= 3) ? "./fk_gen.h" : argv[3];
     std::cout << header_filename << "\n";
 
     std::ofstream of(header_filename);
     block::c_code_generator codegen(of);
 
     of << "#include \"Eigen/Dense\"\n\n";
+    of << "#include \"blaze/Math.h\"\n\n";
     of << "#include <iostream>\n\n";
     of << "namespace ctup_gen {\n\n";
 
     builder::builder_context context;
 
-    auto ast = context.extract_function_ast(Sphere_Environment_Collision, "Sphere_Environment_Collision", env_obj);
+    auto ast = context.extract_function_ast(Robot_Collision, "Robot_Collision", root_one_sph);
+    block::c_code_generator::generate_code(ast, of, 0);
+
+    ast = context.extract_function_ast(Sphere_Environment_Collision, "Sphere_Environment_Collision", env_obj);
     block::c_code_generator::generate_code(ast, of, 0);
 
     of << "}\n";

@@ -239,10 +239,19 @@ public:
 
 } // namespace builder
 
+template <typename T>
+struct vector_t: public builder::custom_type<T> {
+	static constexpr const char* type_name = "std::vector";
+	typedef T dereference_type;
+	dyn_var<void(int)> size = builder::with_name("size");
+};
+
 namespace ctup{
   namespace backend {
   builder::dyn_var<double(double)> sin = builder::as_global("sin");
   builder::dyn_var<double(double)> cos = builder::as_global("cos");
+  builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>,
+  vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>)> Sphere_Environment_Collision = builder::as_global("Sphere_Environment_Collision");
 
   template<typename Scalar, int Dim>
   builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> min = builder::as_global("min");
