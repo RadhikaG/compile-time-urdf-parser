@@ -116,8 +116,8 @@ struct Xform : public blocked_layout<Scalar> {
 
     set_partitions({0, 3}, {0, 3});
     set_new_block(0, 0, rot);
-    set_new_block(3, 3, rot);
-    set_new_block(3, 0, minus_E_rcross);
+    set_new_block(1, 1, rot);
+    set_new_block(1, 0, minus_E_rcross);
   }
 
   void set_revolute_axis(char axis) {

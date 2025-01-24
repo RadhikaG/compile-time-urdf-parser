@@ -146,7 +146,11 @@ struct uncompressed_repr : public in_memory_sparsity_repr {
   }
 
   bool is_nonzero(size_t i, size_t j) const override {
-    return nonzero_status_arr[get_flattened_index(i, j)];
+    return !(nonzero_status_arr[get_flattened_index(i, j)] == ZERO);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return nonzero_status_arr[get_flattened_index(i, j)] == NONCST;
   }
 
   void mark_constant(size_t i, size_t j, bool is_nonzero) override {
