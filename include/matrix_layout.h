@@ -5,6 +5,7 @@
 #include "builder/dyn_var.h"
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
+#include "builder/lib/utils.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -522,6 +523,7 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
       sparsity_tracker = std::make_shared<coo_repr>(r, c);
 
     nonzero_csts.resize(r * c);
+    resize_arr(m_array, r * c);
   }
 
   dyn_var<EigenMatrix<Scalar>> denseify() const override {

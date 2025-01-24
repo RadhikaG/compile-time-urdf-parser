@@ -31,7 +31,7 @@ struct Translation : public matrix_layout<Scalar> {
   using matrix_layout<Scalar>::set_entry_to_constant;
   using matrix_layout<Scalar>::set_entry_to_nonconstant;
 
-  Translation() : matrix_layout<Scalar>(3, 3, SPARSE, UNROLLED, UNCOMPRESSED) {
+  Translation() : matrix_layout<Scalar>(3, 3, SPARSE, FLATTENED, UNCOMPRESSED) {
     matrix_layout<Scalar>::set_zero();
   }
 
@@ -68,7 +68,7 @@ struct Rotation : public matrix_layout<Scalar> {
 
   static_var<int> joint_xform_axis;
 
-  Rotation() : matrix_layout<Scalar>(3, 3, SPARSE, UNROLLED, UNCOMPRESSED) {
+  Rotation() : matrix_layout<Scalar>(3, 3, SPARSE, FLATTENED, UNCOMPRESSED) {
     matrix_layout<Scalar>::set_identity();
   }
 
@@ -114,7 +114,7 @@ struct Xform : public blocked_layout<Scalar> {
 
   Xform() : blocked_layout<Scalar>(6, 6), 
     rot(new Rotation<Scalar>()), trans(new Translation<Scalar>()), 
-    minus_E_rcross(new matrix_layout<Scalar>(3, 3, SPARSE, UNROLLED, UNCOMPRESSED)) {
+    minus_E_rcross(new matrix_layout<Scalar>(3, 3, SPARSE, FLATTENED, UNCOMPRESSED)) {
 
     set_partitions({0, 3}, {0, 3});
     set_new_block(0, 0, rot);
