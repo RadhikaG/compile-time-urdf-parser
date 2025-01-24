@@ -396,14 +396,27 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
     std::vector<size_t> inner_shape2 = expr2.get_block_inner_shape(b_k, b_j);
     assert(inner_shape1[1] == inner_shape2[0] && "sub block inner dims must match, bad blocked partitions");
 
-    // future todo: handle returning block of zeros
-    assert(!(expr1.is_block_zero(b_i, b_k) || expr2.is_block_zero(b_k, b_j)) && 
-        "should only be called when we know resulting expr is nonzero");
+    const size_t oob = expr1.get_expr_n_blocks_shape()[1];
 
-    if (b_k == expr1.get_expr_n_blocks_shape()[1])
-      return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j);
-    else
-      return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j) + gen_mac_chain_recurse(b_i, b_j, b_k+1);
+    static_var<size_t> next_nz;
+    for (next_nz = b_k+1; next_nz < oob; next_nz = next_nz+1) {
+      if (expr1.is_block_nonzero(b_i, next_nz) && expr2.is_block_nonzero(next_nz, b_j)) {
+        break;
+      }
+    }
+
+    if (expr1.is_block_zero(b_i, b_k) || expr2.is_block_zero(b_k, b_j)) {
+      if (next_nz == oob)
+        assert(false && "mul gen_block_expr was called for an empty expr, should have checked if result is zero prior");
+      else
+        return gen_mac_chain_recurse(b_i, b_j, next_nz);
+    }
+    else {
+      if (next_nz == oob)
+        return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j);
+      else
+        return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j) + gen_mac_chain_recurse(b_i, b_j, next_nz);
+    }
   }
 
   const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const override {
