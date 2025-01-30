@@ -244,6 +244,7 @@ struct vector_t: public builder::custom_type<T> {
 	static constexpr const char* type_name = "std::vector";
 	typedef T dereference_type;
 	dyn_var<void(int)> size = builder::with_name("size");
+  dyn_var<int(void)> resize = builder::with_name("resize");
 };
 
 namespace ctup{

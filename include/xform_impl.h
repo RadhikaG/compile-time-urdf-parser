@@ -1041,7 +1041,8 @@ struct Matrix_expr_mul : public Matrix_expr<T> {
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     const size_t inner_dim = expr1.get_expr_shape()[1];
-    dyn_var<T> sum = 0;
+    dyn_var<T> sum;
+    sum=0;
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
       sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
@@ -1139,7 +1140,8 @@ struct Matrix_expr_mul_third : public Matrix_expr<T> {
 
   const builder::builder get_value_at(size_t i, size_t j) const override {
     const size_t inner_dim = expr1.get_expr_shape()[1];
-    dyn_var<T> sum = 0;
+    dyn_var<T> sum;
+    sum=0;
     // k is inner_dim for matmul
     for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
       if (block::isa<block::const_expr>(expr1.get_value_at(i, k).block_expr)) {
