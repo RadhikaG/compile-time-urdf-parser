@@ -293,7 +293,7 @@ static void parseCollisionObjects(const YAML::Node& collisionObjectsNode, std::v
 
 int main(int argc, char* argv[]) {
 
-   //--------------------------
+    //--------------------------
     //LOAD YAML FILE
     //--------------------------
     const std::string yaml_filename = argv[1];
