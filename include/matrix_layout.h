@@ -223,63 +223,77 @@ struct coo_repr : public in_memory_sparsity_repr {
   void mark_constant(size_t i, size_t j, bool is_nonzero) override {
     size_t flattened_idx = get_flattened_index(i, j);
 
-    if (is_nonzero) {
-      // if already marked nonzero_cst then do nothing
-      if (!is_marked_nonzero_cst(i, j)) {
-        if (is_marked_noncst(i, j)) {
-          // remove the nonconstant index mapping
-          // we do not remove the physical entry though
-          // we simply mark it as dirty then reallocate the dirty location
-          // elsewhere
-          dense_to_sparse_noncst_idx.erase(flattened_idx);
-          dirty_rt_indices_noncsts.push_back(flattened_idx);
-        }
-        // now we add an index mapping going from (i,j) to some new sparse index
-        // inside some list of nonzero_csts
-        if (!dirty_rt_indices_nonzero_csts.empty()) {
-          // some index in nonzero_csts is dirty
-          // let's assign (i,j) to this dirty index
-          dense_to_sparse_nonzero_cst_idx[flattened_idx] = dirty_rt_indices_nonzero_csts[0];
-          // removing 0th element
-          dirty_rt_indices_nonzero_csts.erase(dirty_rt_indices_nonzero_csts.begin());
-        }
-        else {
-          // if no dirty indices available then nonzero_cst must be packed
-          // just pick largest available index
-          dense_to_sparse_nonzero_cst_idx[flattened_idx] = dense_to_sparse_nonzero_cst_idx.size();
-        }
-      }
+    if (is_marked_noncst(i, j)) {
+      // remove the nonconstant index mapping
+      // we do not remove the physical entry though
+      // we simply mark it as dirty then reallocate the dirty location
+      // elsewhere
+      dense_to_sparse_noncst_idx.erase(flattened_idx);
+      dirty_rt_indices_noncsts.push_back(flattened_idx);
     }
-    // if zero do nothing, added to neither list
+
+    if (!is_nonzero) {
+      if (is_marked_nonzero_cst(i, j)) {
+        // remove the nonconstant index mapping
+        // we do not remove the physical entry though
+        // we simply mark it as dirty then reallocate the dirty location
+        // elsewhere
+        dense_to_sparse_nonzero_cst_idx.erase(flattened_idx);
+        dirty_rt_indices_nonzero_csts.push_back(flattened_idx);
+      }
+      // zeros are not added to either nonzero_csts or noncsts
+      return;
+    }
+
+    // nonzero and already marked nonzero_cst then do nothing
+    if (is_marked_nonzero_cst(i, j))
+      return;
+
+    // now we add an index mapping going from (i,j) to some new sparse index
+    // inside some list of nonzero_csts
+    if (!dirty_rt_indices_nonzero_csts.empty()) {
+      // some index in nonzero_csts is dirty
+      // let's assign (i,j) to this dirty index
+      dense_to_sparse_nonzero_cst_idx[flattened_idx] = dirty_rt_indices_nonzero_csts[0];
+      // removing 0th element
+      dirty_rt_indices_nonzero_csts.erase(dirty_rt_indices_nonzero_csts.begin());
+    }
+    else {
+      // if no dirty indices available then nonzero_cst must be packed
+      // just pick largest available index
+      dense_to_sparse_nonzero_cst_idx[flattened_idx] = dense_to_sparse_nonzero_cst_idx.size();
+    }
   }
 
   void mark_nonconstant(size_t i, size_t j) override {
     size_t flattened_idx = get_flattened_index(i, j);
 
     // if already marked noncst then do nothing
-    if (!is_marked_noncst(i, j)) {
-      if (is_marked_nonzero_cst(i, j)) {
-        // remove the nonzero cst index mapping
-        // we do not remove the physical entry though
-        // we simply mark it as dirty then reallocate the dirty location
-        // elsewhere
-        dense_to_sparse_noncst_idx.erase(flattened_idx);
-        dirty_rt_indices_noncsts.push_back(flattened_idx);
-      }
-      // now we add an index mapping going from (i,j) to some new sparse index
-      // inside some list of noncsts
-      if (!dirty_rt_indices_noncsts.empty()) {
-        // some index in noncsts is dirty
-        // let's assign (i,j) to this dirty index
-        dense_to_sparse_noncst_idx[flattened_idx] = dirty_rt_indices_noncsts[0];
-        // removing 0th element
-        dirty_rt_indices_noncsts.erase(dirty_rt_indices_noncsts.begin());
-      }
-      else {
-        // if no dirty indices available then noncst must be packed
-        // just pick largest available index
-        dense_to_sparse_noncst_idx[flattened_idx] = dense_to_sparse_noncst_idx.size();
-      }
+    if (is_marked_noncst(i, j))
+      return;
+
+    if (is_marked_nonzero_cst(i, j)) {
+      // remove the nonzero cst index mapping
+      // we do not remove the physical entry though
+      // we simply mark it as dirty then reallocate the dirty location
+      // elsewhere
+      dense_to_sparse_nonzero_cst_idx.erase(flattened_idx);
+      dirty_rt_indices_nonzero_csts.push_back(flattened_idx);
+    }
+
+    // now we add an index mapping going from (i,j) to some new sparse index
+    // inside some list of noncsts
+    if (!dirty_rt_indices_noncsts.empty()) {
+      // some index in noncsts is dirty
+      // let's assign (i,j) to this dirty index
+      dense_to_sparse_noncst_idx[flattened_idx] = dirty_rt_indices_noncsts[0];
+      // removing 0th element
+      dirty_rt_indices_noncsts.erase(dirty_rt_indices_noncsts.begin());
+    }
+    else {
+      // if no dirty indices available then noncst must be packed
+      // just pick largest available index
+      dense_to_sparse_noncst_idx[flattened_idx] = dense_to_sparse_noncst_idx.size();
     }
   }
 
@@ -352,6 +366,10 @@ struct matrix_layout_expr : public zero_cst_status_checkable {
     return std::vector<size_t>();
   }
 };
+
+// fwd decl
+template <typename Scalar>
+struct matrix_layout_expr_leaf;
 
 template <typename Scalar>
 struct storage : public zero_cst_status_checkable {
@@ -705,6 +723,10 @@ struct matrix_layout : public zero_cst_status_checkable {
     }
   }
 
+  void operator=(const matrix_layout<Scalar> &mat) {
+    *this = matrix_layout_expr_leaf<Scalar>(mat);
+  }
+
   size_t get_n_rows() const {
     return shape[0];
   }
@@ -763,7 +785,10 @@ struct matrix_layout : public zero_cst_status_checkable {
   void set_zero() {
     for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
       for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
-        set_entry_to_constant(i, j, 0);
+        if (i == 2 && j == 0)
+          set_entry_to_constant(i, j, 0);
+        else
+          set_entry_to_constant(i, j, 0);
       }
     }
   }

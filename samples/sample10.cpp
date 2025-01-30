@@ -2,7 +2,8 @@
 // To generate fk_gen.h used in apps/sample10/driver:
 // $ ./build/sample10 deps/pinocchio/models/baxter_simple.urdf apps/sample10/fk_gen.h
 #include "backend.h"
-#include "spatial_algebra.h"
+#include "xform_operators.h"
+#include "xform_impl.h"
 #include "utils.h"
 
 #include "blocks/block_visitor.h"
@@ -18,6 +19,8 @@
 #include <Eigen/src/Core/IO.h>
 #include <Eigen/src/Core/Matrix.h>
 #include <string>
+
+#include <fstream>
 
 const size_t N_X_T = 3;
 

@@ -44,6 +44,15 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
     return std::vector<size_t>();
   }
 
+  virtual bool is_block_set(size_t b_i, size_t b_j) const {
+    trigger_abstract_method_assert();
+    return false;
+  }
+
+  virtual bool is_block_unset(size_t b_i, size_t b_j) const {
+    return !is_block_set(b_i, b_j);
+  }
+
   virtual bool is_block_nonzero(size_t b_i, size_t b_j) const {
     trigger_abstract_method_assert();
     return false;
@@ -63,6 +72,10 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
     return {};
   }
 };
+
+// fwd decl
+template <typename Scalar>
+struct blocked_layout_expr_leaf;
 
 // base class for composite matrix_layouts that hold
 // other layouts within them.
@@ -134,6 +147,24 @@ struct blocked_layout : public zero_cst_status_checkable {
     if (block_idx_to_block.find(block_idx) == block_idx_to_block.end())
       return false;
     return true;
+  }
+
+  bool is_block_nonzero(size_t b_i, size_t b_j) const {
+    if (is_block_set(b_i, b_j)) {
+      auto block_idx = std::make_pair(b_i, b_j);
+
+      auto block_ptr = block_idx_to_block.at(block_idx);
+
+      for (static_var<size_t> ii = 0; ii < block_ptr->get_n_rows(); ii=ii+1) {
+        for (static_var<size_t> jj = 0; jj < block_ptr->get_n_cols(); jj=jj+1) {
+          if (block_ptr->is_nonzero(ii, jj))
+            return true;
+        }
+      }
+      return false;
+    }
+    // if no matrix layout associated with block then guaranteed zero
+    return false;
   }
   
   std::pair<size_t, size_t> get_block_idx(size_t i, size_t j) const {
@@ -265,9 +296,11 @@ struct blocked_layout : public zero_cst_status_checkable {
     for (static_var<size_t> b_i = 0; b_i < n_blocks_r; b_i = b_i+1) {
       for (static_var<size_t> b_j = 0; b_j < n_blocks_c; b_j = b_j+1) {
         if (rhs.is_block_nonzero(b_i, b_j)) {
-          assert(is_block_set(b_i, b_j) && "block must have some inner matrix layout associated with it");
+          // future todo: LHS should be able to propagate nonzero block from RHS to LHS
+          // we don't do this currently
+          assert(is_block_set(b_i, b_j) && "LHS block must have some inner matrix layout associated with it");
 
-          auto block_ptr = block_idx_to_block[std::make_pair(b_i, b_j)];
+          auto block_ptr = block_idx_to_block.at(std::make_pair(b_i, b_j));
 
           // future todo: RHS should be able to set block shapes of LHS in the future
           // LHS in the future should be any generic matrix that can have blocks
@@ -278,8 +311,21 @@ struct blocked_layout : public zero_cst_status_checkable {
 
           *block_ptr = rhs.gen_block_expr(b_i, b_j);
         }
+        else {
+          if (is_block_set(b_i, b_j)) {
+            // ... but corresp. LHS block has matrix layout associated with it
+            // ... block will need its individual entries assigned to zero then
+            auto block_ptr = block_idx_to_block.at(std::make_pair(b_i, b_j));
+            block_ptr->set_zero();
+          }
+          // else do nothing, LHS block already zero
+        }
       }
     }
+  }
+
+  void operator=(const blocked_layout<Scalar> &mat) {
+    *this = blocked_layout_expr_leaf<Scalar>(mat);
   }
 };
 
@@ -307,10 +353,12 @@ struct blocked_layout_expr_leaf : public blocked_layout_expr<Scalar> {
     return expr_block_shape;
   }
 
+  bool is_block_set(size_t b_i, size_t b_j) const override {
+    return m_mat.is_block_set(b_i, b_j);
+  }
+
   bool is_block_nonzero(size_t b_i, size_t b_j) const override {
-    if (m_mat.is_block_set(b_i, b_j))
-      return true;
-    return false;
+    return m_mat.is_block_nonzero(b_i, b_j);
   }
 
   std::vector<size_t> get_block_inner_shape(size_t b_i, size_t b_j) const override {
@@ -361,6 +409,17 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
 
   std::vector<size_t> get_expr_n_blocks_shape() const override {
     return expr_block_shape;
+  }
+
+  bool is_block_set(size_t b_i, size_t b_j) const override {
+    const size_t inner_dim = expr1.get_expr_n_blocks_shape()[1];
+    for (static_var<size_t> b_k = 0; b_k < inner_dim; b_k = b_k + 1) {
+      // when summing up products of inner_dim, if any one product is set
+      // then block (b_i, b_j) is guaranteed to be set.
+      if (expr1.is_block_set(b_i, b_k) && expr2.is_block_set(b_k, b_j))
+        return true;
+    }
+    return false;
   }
 
   bool is_block_nonzero(size_t b_i, size_t b_j) const override {

@@ -131,7 +131,8 @@ public:
       as_member(this, "block<3,3>"); // remove template params later
   dyn_var<void(void)> setZero = as_member(this, "setZero");
   dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(double)> setConstant = as_member(this, "setConstant");
-  dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> transpose = as_member(this, "transpose");
+  //dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> transpose = as_member(this, "transpose");
+  dyn_var<ctup::EigenMatrix<Scalar> &(void)> transpose = as_member(this, "transpose");
   dyn_var<eigen_vectorXd_t &(Eigen::Index)> col = as_member(this, "col");
 };
 

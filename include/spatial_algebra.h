@@ -1,8 +1,9 @@
 #ifndef SPATIALALGEBRA_H
 #define SPATIALALGEBRA_H
 
-#include "xform_impl.h"
-#include "xform_operators.h"
+#include "matrix_layout.h"
+#include "matrix_layout_composite.h"
+#include "matrix_operators.h"
 
 #include "blocks/c_code_generator.h"
 #include "blocks/extract_cuda.h"
