@@ -36,7 +36,7 @@ struct Xform : public matrix_layout<Scalar> {
   static_var<int> joint_type;
   static_var<int> joint_xform_axis;
 
-  Xform() : matrix_layout<Scalar>(6, 6, ctup::TILED, ctup::EIGENMATRIX, ctup::COMPRESSED) {}
+  Xform() : matrix_layout<Scalar>(6, 6, ctup::TILE, ctup::EIGENMATRIX, ctup::COMPRESSED) {}
 
   void set_revolute_axis(char axis) {
     assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");

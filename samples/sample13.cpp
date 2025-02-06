@@ -102,7 +102,7 @@ struct Rotation : public matrix_layout<Scalar> {
 };
 
 template <typename Scalar>
-struct Xform : public blocked_layout<Scalar> {
+struct XformBlocked : public blocked_layout<Scalar> {
   using blocked_layout<Scalar>::set_partitions;
   using blocked_layout<Scalar>::set_new_block;
   using blocked_layout<Scalar>::operator=;
@@ -113,7 +113,7 @@ struct Xform : public blocked_layout<Scalar> {
 
   static_var<int> joint_type;
 
-  Xform() : blocked_layout<Scalar>(6, 6), 
+  XformBlocked() : blocked_layout<Scalar>(6, 6), 
     rot(new Rotation<Scalar>()), trans(new Translation<Scalar>()), 
     minus_E_rcross(new matrix_layout<Scalar>(3, 3, SPARSE, FLATTENED, COMPRESSED)) {
 
@@ -146,11 +146,101 @@ struct Xform : public blocked_layout<Scalar> {
   }
 };
 
+template <typename Scalar>
+struct XformNonBlocked : public matrix_layout<Scalar> {
+  using matrix_layout<Scalar>::set_entry_to_constant;
+  using matrix_layout<Scalar>::set_entry_to_nonconstant;
+  dyn_var<Scalar> sinq;
+  dyn_var<Scalar> cosq;
+
+  static_var<int> joint_type;
+  static_var<int> joint_xform_axis;
+
+  XformNonBlocked() : matrix_layout<Scalar>(6, 6, SPARSE, FLATTENED, COMPRESSED) {
+    matrix_layout<Scalar>::set_identity();
+  }
+
+  void set_revolute_axis(char axis) {
+    assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
+    joint_xform_axis = axis;
+    joint_type = 'R';
+  }
+
+  void set_prismatic_axis(char axis) {
+    assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
+    joint_xform_axis = axis;
+    joint_type = 'P';
+  }
+
+  void jcalc(const dyn_var<Scalar> &q_i) {
+    sinq = backend::sin(q_i);
+    cosq = backend::cos(q_i);
+
+    if (joint_type == 'R') {
+      if (joint_xform_axis == 'X') {
+        set_entry_to_nonconstant(1, 1, cosq);
+        set_entry_to_nonconstant(1, 2, sinq);
+        set_entry_to_nonconstant(2, 1, -sinq);
+        set_entry_to_nonconstant(2, 2, cosq);
+        // symm E
+        set_entry_to_nonconstant(3+1, 3+1, cosq);
+        set_entry_to_nonconstant(3+1, 3+2, sinq);
+        set_entry_to_nonconstant(3+2, 3+1, -sinq);
+        set_entry_to_nonconstant(3+2, 3+2, cosq);
+      }
+      else if (joint_xform_axis == 'Y') {
+        set_entry_to_nonconstant(0, 0, cosq);
+        set_entry_to_nonconstant(0, 2, -sinq);
+        set_entry_to_nonconstant(2, 0, sinq);
+        set_entry_to_nonconstant(2, 2, cosq);
+        // symm E
+        set_entry_to_nonconstant(3+0, 3+0, cosq);
+        set_entry_to_nonconstant(3+0, 3+2, -sinq);
+        set_entry_to_nonconstant(3+2, 3+0, sinq);
+        set_entry_to_nonconstant(3+2, 3+2, cosq);
+      }
+      else if (joint_xform_axis == 'Z') {
+        set_entry_to_nonconstant(0, 0, cosq);
+        set_entry_to_nonconstant(0, 1, sinq);
+        set_entry_to_nonconstant(1, 0, -sinq);
+        set_entry_to_nonconstant(1, 1, cosq);
+        // symm E
+        set_entry_to_nonconstant(3+0, 3+0, cosq);
+        set_entry_to_nonconstant(3+0, 3+1, sinq);
+        set_entry_to_nonconstant(3+1, 3+0, -sinq);
+        set_entry_to_nonconstant(3+1, 3+1, cosq);
+      }
+    }
+    else if (joint_type == 'P') {
+      // negative r-cross, opp signs of featherstone 2.23
+      if (joint_xform_axis == 'X') {
+        set_entry_to_nonconstant(3+1, 2, q_i);
+        set_entry_to_nonconstant(3+2, 1, -q_i);
+      }
+      else if (joint_xform_axis == 'Y') {
+        set_entry_to_nonconstant(3+2, 0, q_i);
+        set_entry_to_nonconstant(3+0, 2, -q_i);
+      }
+      else if (joint_xform_axis == 'Z') {
+        set_entry_to_nonconstant(3+0, 1, q_i);
+        set_entry_to_nonconstant(3+1, 0, -q_i);
+      }
+    }
+    else {
+      assert(false && "jcalc called on non joint xform or joint unset");
+    }
+  }
+
+  using matrix_layout<Scalar>::operator=;
+};
+
 }
 
 /** helpers **/
 
-using ctup::Xform;
+template <typename Scalar>
+using Xform = ctup::XformNonBlocked<Scalar>;
+
 using ctup::EigenMatrix;
 
 builder::dyn_var<void(EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
@@ -197,7 +287,7 @@ static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vector
 
   set_X_T(X_T);
 
-  const size_t i = 1;
+  const size_t i = 2;
 
   Xform<double> X_J, X_pi, X_0;
 
@@ -206,16 +296,19 @@ static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vector
 
   X_pi = X_J * X_T[i];
 
-  X_0 = ctup::blocked_layout_expr_leaf<double>(X_pi);
+  //X_0 = ctup::blocked_layout_expr_leaf<double>(X_pi);
+  X_0 = ctup::matrix_layout_expr_leaf<double>(X_pi);
 
   print_Xmat("us X_J:", X_J);
   print_Xmat("us X_T:", X_T[i]);
   print_Xmat("us X_pi:", X_pi);
   print_Xmat("us X_0:", X_0);
   print_string("-------");
-  X_0 = ctup::blocked_layout_expr_leaf<double>(X_J);
+  //X_0 = ctup::blocked_layout_expr_leaf<double>(X_J);
+  X_0 = ctup::matrix_layout_expr_leaf<double>(X_J);
   print_Xmat("us X_0 X_J:", X_0);
-  X_0 = ctup::blocked_layout_expr_leaf<double>(X_T[i]);
+  //X_0 = ctup::blocked_layout_expr_leaf<double>(X_T[i]);
+  X_0 = ctup::matrix_layout_expr_leaf<double>(X_T[i]);
   print_Xmat("us X_0 X_T:", X_0);
 
   dyn_var<ctup::EigenMatrix<double, 6, 6>> final_ans;

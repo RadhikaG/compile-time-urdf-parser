@@ -53,7 +53,7 @@ using inner_type_t = typename inner_type<Prim>::type;
 enum iteration_order {
   DENSE,
   SPARSE,
-  TILED,
+  TILE,
 };
 
 enum backend_mem_representation {
@@ -177,6 +177,9 @@ struct coo_repr : public in_memory_sparsity_repr {
   std::unordered_map<size_t, size_t> dense_to_sparse_nonzero_cst_idx;
   std::unordered_map<size_t, size_t> dense_to_sparse_noncst_idx;
 
+  // marks physical entries that were previously assigned to some value,
+  // that are now open to be overwritten (dirty).
+  // this is because we do not delete any physical entries, just realloc them.
   std::vector<size_t> dirty_rt_indices_nonzero_csts;
   std::vector<size_t> dirty_rt_indices_noncsts;
 
@@ -228,18 +231,21 @@ struct coo_repr : public in_memory_sparsity_repr {
       // we do not remove the physical entry though
       // we simply mark it as dirty then reallocate the dirty location
       // elsewhere
+      size_t dirty_noncst_idx = dense_to_sparse_noncst_idx[flattened_idx];
       dense_to_sparse_noncst_idx.erase(flattened_idx);
-      dirty_rt_indices_noncsts.push_back(flattened_idx);
+      dirty_rt_indices_noncsts.push_back(dirty_noncst_idx);
     }
 
     if (!is_nonzero) {
+      // want to mark entry as zero
       if (is_marked_nonzero_cst(i, j)) {
-        // remove the nonconstant index mapping
+        // remove the nonzero cst index mapping
         // we do not remove the physical entry though
         // we simply mark it as dirty then reallocate the dirty location
         // elsewhere
+        size_t dirty_nonzero_cst_idx = dense_to_sparse_nonzero_cst_idx[flattened_idx];
         dense_to_sparse_nonzero_cst_idx.erase(flattened_idx);
-        dirty_rt_indices_nonzero_csts.push_back(flattened_idx);
+        dirty_rt_indices_nonzero_csts.push_back(dirty_nonzero_cst_idx);
       }
       // zeros are not added to either nonzero_csts or noncsts
       return;
@@ -248,6 +254,8 @@ struct coo_repr : public in_memory_sparsity_repr {
     // nonzero and already marked nonzero_cst then do nothing
     if (is_marked_nonzero_cst(i, j))
       return;
+
+    // is_nonzero cst and (not previously marked nonzero cst)
 
     // now we add an index mapping going from (i,j) to some new sparse index
     // inside some list of nonzero_csts
@@ -277,8 +285,9 @@ struct coo_repr : public in_memory_sparsity_repr {
       // we do not remove the physical entry though
       // we simply mark it as dirty then reallocate the dirty location
       // elsewhere
+      size_t dirty_nonzero_cst_idx = dense_to_sparse_nonzero_cst_idx[flattened_idx];
       dense_to_sparse_nonzero_cst_idx.erase(flattened_idx);
-      dirty_rt_indices_nonzero_csts.push_back(flattened_idx);
+      dirty_rt_indices_nonzero_csts.push_back(dirty_nonzero_cst_idx);
     }
 
     // now we add an index mapping going from (i,j) to some new sparse index
@@ -702,7 +711,7 @@ struct matrix_layout : public zero_cst_status_checkable {
   }
 
   void operator=(const matrix_layout_expr<Scalar> &rhs) {
-    if (iter_order == TILED) {
+    if (iter_order == TILE) {
       m_storage->set_matrix(rhs.gen_dyn_matrix());
     }
     else {

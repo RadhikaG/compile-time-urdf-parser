@@ -33,7 +33,7 @@ static void set_X_T(Eigen::Matrix<double, 6, 6> X_T[]) {
 int main(int argc, char *argv[]) {
   Eigen::Matrix<double, 6, 6> X_T[N_X_T];
 
-  const size_t i = 1;
+  const size_t i = 2;
 
   Eigen::Matrix<double, 6, 6> X_J, X_pi, X_0;
   X_J.setZero();
