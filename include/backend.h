@@ -98,12 +98,20 @@ public:
     return (*this) = (builder)t;
   }
 
-  void set_matrix_fixed_size(int _n_rows, int _n_cols) {
+  // convenience getter variables
+  size_t n_rows;
+  size_t n_cols;
+
+  void set_matrix_fixed_size(size_t _n_rows, size_t _n_cols) {
     auto type = block::to<block::named_type>(this->block_var->var_type);
     auto d1 = block::to<block::named_type>(type->template_args[1]);
     auto d2 = block::to<block::named_type>(type->template_args[2]);
     d1->type_name = std::to_string(_n_rows);
     d2->type_name = std::to_string(_n_cols);
+
+    // setting convenience getter variables
+    n_rows = _n_rows;
+    n_cols = _n_cols;
 
     //type->template_args.push_back(d1);
     //type->template_args.push_back(d2);

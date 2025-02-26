@@ -673,6 +673,10 @@ struct eigen_matrix_storage : public storage<Scalar> {
     m_matrix.set_matrix_fixed_size(r, c);
   }
 
+  eigen_matrix_storage(const dyn_var<EigenMatrix<Scalar>> &v, size_t r, size_t c) : 
+      storage<Scalar>(r, c), m_matrix(v) {
+  }
+
   dyn_var<EigenMatrix<Scalar>> denseify() const override {
     return m_matrix;
   }
@@ -751,6 +755,12 @@ struct matrix_layout : public zero_cst_status_checkable {
       }
     }
     assert(m_storage != nullptr && "messed up shouldn't happen");
+  }
+
+  matrix_layout(const dyn_var<EigenMatrix<Scalar>> &raw_mat) :
+      is_batched(false), iter_order(DENSE), backend_mem_repr(EIGENMATRIX), compress(UNCOMPRESSED), shape{raw_mat.n_rows, raw_mat.n_cols}
+  {
+    m_storage = std::make_shared<eigen_matrix_storage<Scalar>>(raw_mat, shape[0], shape[1]);
   }
 
   void operator=(const matrix_layout_expr<Scalar> &rhs) {
