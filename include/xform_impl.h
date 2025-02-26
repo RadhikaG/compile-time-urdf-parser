@@ -596,21 +596,6 @@ public:
     if (has_z)
       z = q_i;
   }
-
-  void operator=(const Translation_expr<Scalar> &rhs) {
-    if (rhs.has_x()) {
-      has_x = true;
-      x = rhs.get_x();
-    }
-    if (rhs.has_y()) {
-      has_y = true;
-      y = rhs.get_y();
-    }
-    if (rhs.has_z()) {
-      has_z = true;
-      z = rhs.get_z();
-    }
-  }
 };
 
 template <typename Scalar>
@@ -635,28 +620,6 @@ struct Matrix {
         else
           set_entry_to_constant(i, j, 0);
       }
-    }
-  }
-
-  void operator=(const Matrix_expr<Scalar> &rhs) {
-    if (storage.sparsity_type_id == SPARSE_UNROLLED) {
-      for (static_var<size_t> i = 0; i < n_rows; i = i + 1) {
-        for (static_var<size_t> j = 0; j < n_cols; j = j + 1) {
-          if (rhs.is_nonzero(i, j)) {
-            // todo: we currently mark the entry as dyn even when the assigned value
-            // is a non-zero constant.
-            // We don't propagate any non-zero constants.
-            // Change later.
-            storage.set_entry_to_dyn(i, j, rhs.get_value_at(i, j));
-          }
-          else {
-            storage.set_entry_to_constant(i, j, 0);
-          }
-        }
-      }
-    }
-    else if (storage.sparsity_type_id == DENSE) {
-      storage.set_matrix(rhs.get_value());
     }
   }
 };
@@ -690,48 +653,6 @@ struct Rotation : public Matrix<Scalar> {
       has_z = true;
     }
   }
-
-  void jcalc(const dyn_var<Scalar> &q_i) {
-    // Featherstone, Table 2.2
-    sinq = backend::sin(q_i);
-    cosq = backend::cos(q_i);
-
-    assertm(is_joint_xform == true, "can't jcalc on a non-joint xform");
-
-    if (has_x) {
-      storage.set_entry_to_dyn(1, 1, cosq);
-      storage.set_entry_to_dyn(1, 2, sinq);
-      storage.set_entry_to_dyn(2, 1, -sinq);
-      storage.set_entry_to_dyn(2, 2, cosq);
-    }
-    else if (has_y) {
-      storage.set_entry_to_dyn(0, 0, cosq);
-      storage.set_entry_to_dyn(0, 2, -sinq);
-      storage.set_entry_to_dyn(2, 0, sinq);
-      storage.set_entry_to_dyn(2, 2, cosq);
-    }
-    else if (has_z) {
-      storage.set_entry_to_dyn(0, 0, cosq);
-      storage.set_entry_to_dyn(0, 1, sinq);
-      storage.set_entry_to_dyn(1, 0, -sinq);
-      storage.set_entry_to_dyn(1, 1, cosq);
-    }
-  }
-
-  //void operator= (const Rotation_expr<Scalar> &rhs) {
-  //  if (rhs.has_x()) {
-  //    has_x = true;
-  //  }
-  //  if (rhs.has_y()) {
-  //    has_y = true;
-  //  }
-  //  if (rhs.has_z()) {
-  //    has_z = true;
-  //  }
-
-  //  Matrix<Scalar>::operator=(rhs);
-  //}
-  using Matrix<Scalar>::operator=;
 };
 
 template <typename Scalar>
@@ -762,31 +683,6 @@ struct Xform {
     has_rotation = false;
     has_translation = true;
     trans.set_prismatic_axis(axis);
-  }
-  void jcalc(const dyn_var<Scalar> &q_i) {
-    if (has_rotation) {
-      rot.jcalc(q_i);
-    }
-    else if (has_translation) {
-      trans.jcalc(q_i);
-    }
-    // todo: trans should be trans-cross, do later
-    minus_E_rcross = -rot * trans;
-  }
-
-  void operator=(const Xform_expr<Scalar> &rhs) {
-    if (rhs.has_rotation()) {
-      has_rotation = true;
-      rot = rhs.get_rotation_expr();
-    }
-    if (rhs.has_translation()) {
-      has_translation = true;
-      minus_E_rcross = rhs.get_minus_E_rcross_expr();
-    }
-  }
-
-  void operator=(const Xform<Scalar> &xform) {
-    *this = Xform_expr_leaf<Scalar>(xform);
   }
 };
 
@@ -819,111 +715,6 @@ struct Matrix_expr_leaf : public Matrix_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct Matrix_expr_unary_minus : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar> &expr1;
-
-  std::vector<size_t> expr_shape;
-
-  Matrix_expr_unary_minus(const struct Matrix_expr<Scalar> &expr1) : expr1(expr1) {
-    expr_shape = expr1.get_expr_shape();
-  }
-
-  const std::vector<size_t> get_expr_shape() const override {
-    return expr_shape;
-  }
-
-  const builder::builder get_value() const override {
-    return -expr1.get_value();
-  }
-
-  const builder::builder get_value_at(size_t i, size_t j) const override {
-    return -expr1.get_value_at(i, j);
-  }
-
-  int is_nonzero(size_t i, size_t j) const override {
-    return expr1.is_nonzero(i, j);
-  }
-};
-
-template <typename Scalar>
-struct Matrix_expr_add : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar> &expr1;
-  const struct Matrix_expr<Scalar> &expr2;
-
-  std::vector<size_t> expr_shape;
-
-  Matrix_expr_add(const struct Matrix_expr<Scalar> &expr1, const struct Matrix_expr<Scalar> &expr2)
-      : expr1(expr1), expr2(expr2) {
-    std::vector<size_t> shape1 = expr1.get_expr_shape();
-    std::vector<size_t> shape2 = expr2.get_expr_shape();
-    assertm(shape1[0] == shape2[0] && shape1[1] == shape2[1], "shapes must match");
-    expr_shape.push_back(shape1[0]);
-    expr_shape.push_back(shape1[1]);
-  }
-
-  const std::vector<size_t> get_expr_shape() const override {
-    return expr_shape;
-  }
-
-  const builder::builder get_value() const override {
-    return expr1.get_value() + expr2.get_value();
-  }
-
-  const builder::builder get_value_at(size_t i, size_t j) const override {
-    return expr1.get_value_at(i, j) + expr2.get_value_at(i, j);
-  }
-
-  int is_nonzero(size_t i, size_t j) const override {
-    return expr1.is_nonzero(i, j) || expr2.is_nonzero(i, j);
-  }
-};
-
-template <typename Scalar>
-struct Matrix_expr_mul : public Matrix_expr<Scalar> {
-  const struct Matrix_expr<Scalar> &expr1;
-  const struct Matrix_expr<Scalar> &expr2;
-
-  std::vector<size_t> expr_shape;
-
-  Matrix_expr_mul(const struct Matrix_expr<Scalar> &expr1, const struct Matrix_expr<Scalar> &expr2)
-      : expr1(expr1), expr2(expr2) {
-    std::vector<size_t> shape1 = expr1.get_expr_shape();
-    std::vector<size_t> shape2 = expr2.get_expr_shape();
-    assertm(shape1[1] == shape2[0], "inner dim of matmul expr must match");
-    expr_shape.push_back(shape1[0]);
-    expr_shape.push_back(shape2[1]);
-  }
-
-  const std::vector<size_t> get_expr_shape() const override {
-    return expr_shape;
-  }
-
-  const builder::builder get_value() const override {
-    return expr1.get_value() * expr2.get_value();
-  }
-
-  const builder::builder get_value_at(size_t i, size_t j) const override {
-    const size_t inner_dim = expr1.get_expr_shape()[1];
-    dyn_var<Scalar> sum = 0;
-    // k is inner_dim for matmul
-    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
-    }
-    return sum;
-  }
-
-  int is_nonzero(size_t i, size_t j) const override {
-    const size_t inner_dim = expr1.get_expr_shape()[1];
-    for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-      // when summing up products of inner_dim, if any one product is nonzero
-      // then (i, j) is guaranteed to be nonzero.
-      if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
-        return true;
-    }
-    return false;
-  }
-};
 
 template <typename Scalar>
 struct Translation_expr_leaf : public Translation_expr<Scalar> {
@@ -953,102 +744,6 @@ struct Translation_expr_leaf : public Translation_expr<Scalar> {
 };
 
 template <typename Scalar>
-struct Translation_expr_add : public Translation_expr<Scalar> {
-  const struct Translation_expr<Scalar> &expr1;
-  const struct Translation_expr<Scalar> &expr2;
-
-  Translation_expr_add(const struct Translation_expr<Scalar> &expr1,
-                       const struct Translation_expr<Scalar> &expr2)
-      : expr1(expr1), expr2(expr2) {}
-
-  const builder::builder get_x() const override {
-    return expr1.get_x() + expr2.get_x();
-  }
-  const builder::builder get_y() const override {
-    return expr1.get_y() + expr2.get_y();
-  }
-  const builder::builder get_z() const override {
-    return expr1.get_z() + expr2.get_z();
-  }
-
-  int has_x() const override {
-    return expr1.has_x() || expr2.has_x();
-  }
-  int has_y() const override {
-    return expr1.has_y() || expr2.has_y();
-  }
-  int has_z() const override {
-    return expr1.has_z() || expr2.has_z();
-  }
-};
-
-//template<typename Scalar>
-//struct Rotation_expr_leaf : public Rotation_expr<Scalar> {
-//  const struct Rotation<Scalar>& m_rot;
-//
-//  Rotation_expr_leaf(const struct Rotation<Scalar>& rot) : m_rot(rot) {}
-//
-//  const builder::builder get_value_at(size_t i, size_t j) const override {
-//    if (m_rot.storage.is_constant(i, j))
-//      return m_rot.storage.get_constant_entry(i, j);
-//    else
-//      return m_rot.storage.get_dyn_entry(i, j);
-//  }
-//
-//  int is_nonzero(size_t i, size_t j) const override {
-//    return m_rot.storage.is_nonzero(i, j);
-//  }
-//
-//  int has_x() const override {
-//    return m_rot.has_x;
-//  }
-//  int has_y() const override {
-//    return m_rot.has_y;
-//  }
-//  int has_z() const override {
-//    return m_rot.has_z;
-//  }
-//};
-//
-//template<typename Scalar>
-//struct Rotation_expr_mul : public Rotation_expr<Scalar> {
-//  const struct Rotation_expr<Scalar>& expr1;
-//  const struct Rotation_expr<Scalar>& expr2;
-//
-//  Rotation_expr_mul(const struct Rotation_expr<Scalar>& expr1, const struct Rotation_expr<Scalar>& expr2) :
-//    expr1(expr1), expr2(expr2) {}
-//
-//  const builder::builder get_value_at(size_t i, size_t j) const override {
-//    dyn_var<Scalar> sum = 0;
-//    // k is inner_dim for matmul
-//    for (static_var<size_t> k = 0; k < 3; k = k + 1) {
-//      sum += expr1.get_value_at(i, k) * expr2.get_value_at(k, j);
-//    }
-//    return sum;
-//  }
-//
-//  int is_nonzero(size_t i, size_t j) const override {
-//    for (static_var<size_t> k = 0; k < 3; k = k + 1) {
-//      // when summing up products of inner_dim, if any one product is nonzero
-//      // then (i, j) is guaranteed to be nonzero.
-//      if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
-//        return true;
-//    }
-//    return false;
-//  }
-//
-//  int has_x() const override {
-//    return expr1.has_x() || expr2.has_x();
-//  }
-//  int has_y() const override {
-//    return expr1.has_y() || expr2.has_y();
-//  }
-//  int has_z() const override {
-//    return expr1.has_z() || expr2.has_z();
-//  }
-//};
-
-template <typename Scalar>
 struct Xform_expr_leaf : public Xform_expr<Scalar> {
   const struct Xform<Scalar> &m_xform;
 
@@ -1069,30 +764,6 @@ struct Xform_expr_leaf : public Xform_expr<Scalar> {
   }
   int has_translation() const override {
     return m_xform.has_translation;
-  }
-};
-
-template <typename Scalar>
-struct Xform_expr_mul : public Xform_expr<Scalar> {
-  const struct Xform_expr<Scalar> &expr1;
-  const struct Xform_expr<Scalar> &expr2;
-
-  Xform_expr_mul(const struct Xform_expr<Scalar> &expr1, const struct Xform_expr<Scalar> &expr2)
-      : expr1(expr1), expr2(expr2) {}
-
-  const Matrix_expr<Scalar> &get_rotation_expr() const override {
-    return expr1.get_rotation_expr() * expr2.get_rotation_expr();
-  }
-  const Matrix_expr<Scalar> &get_minus_E_rcross_expr() const override {
-    return expr1.get_minus_E_rcross_expr() * expr2.get_rotation_expr() +
-           expr1.get_rotation_expr() * expr2.get_minus_E_rcross_expr();
-  }
-
-  int has_rotation() const override {
-    return expr1.has_rotation() || expr2.has_rotation();
-  }
-  int has_translation() const override {
-    return expr1.has_translation() || expr2.has_translation();
   }
 };
 

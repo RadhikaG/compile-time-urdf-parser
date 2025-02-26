@@ -82,7 +82,6 @@ struct blocked_layout_expr_leaf;
 template <typename Scalar>
 struct blocked_layout : public zero_cst_status_checkable {
   const size_t shape[2];
-  const size_t max_idx;
 
   std::map<std::pair<size_t, size_t>, typename matrix_layout<Scalar>::Ptr> block_idx_to_block;
 
@@ -94,8 +93,7 @@ struct blocked_layout : public zero_cst_status_checkable {
   size_t n_blocks_c;
 
   blocked_layout(size_t _n_rows, size_t _n_cols) : 
-      shape{_n_rows, _n_cols}, max_idx(_n_rows * _n_cols) {
-  }
+      shape{_n_rows, _n_cols} {}
 
   size_t get_flattened_index(size_t i, size_t j) const {
     size_t  flattened = i * shape[1] + j;
@@ -455,23 +453,23 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
     std::vector<size_t> inner_shape2 = expr2.get_block_inner_shape(b_k, b_j);
     assert(inner_shape1[1] == inner_shape2[0] && "sub block inner dims must match, bad blocked partitions");
 
-    const size_t oob = expr1.get_expr_n_blocks_shape()[1];
+    const size_t OOB = expr1.get_expr_n_blocks_shape()[1];
 
     static_var<size_t> next_nz;
-    for (next_nz = b_k+1; next_nz < oob; next_nz = next_nz+1) {
+    for (next_nz = b_k+1; next_nz < OOB; next_nz = next_nz+1) {
       if (expr1.is_block_nonzero(b_i, next_nz) && expr2.is_block_nonzero(next_nz, b_j)) {
         break;
       }
     }
 
     if (expr1.is_block_zero(b_i, b_k) || expr2.is_block_zero(b_k, b_j)) {
-      if (next_nz == oob)
+      if (next_nz == OOB)
         assert(false && "mul gen_block_expr was called for an empty expr, should have checked if result is zero prior");
       else
         return gen_mac_chain_recurse(b_i, b_j, next_nz);
     }
     else {
-      if (next_nz == oob)
+      if (next_nz == OOB)
         return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j);
       else
         return expr1.gen_block_expr(b_i, b_k) * expr2.gen_block_expr(b_k, b_j) + gen_mac_chain_recurse(b_i, b_j, next_nz);

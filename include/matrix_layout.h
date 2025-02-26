@@ -65,6 +65,7 @@ enum backend_mem_representation {
 enum compression {
   UNCOMPRESSED,
   COMPRESSED,
+  SINGLETON,
 };
 
 enum var_type {
@@ -164,7 +165,6 @@ struct uncompressed_repr : public in_memory_sparsity_repr {
   void mark_nonconstant(size_t i, size_t j) override {
     nonzero_status_arr[get_flattened_index(i, j)] = NONCST;
   }
-
 };
 
 struct coo_repr : public in_memory_sparsity_repr {
@@ -182,8 +182,6 @@ struct coo_repr : public in_memory_sparsity_repr {
   // this is because we do not delete any physical entries, just realloc them.
   std::vector<size_t> dirty_rt_indices_nonzero_csts;
   std::vector<size_t> dirty_rt_indices_noncsts;
-
-  const size_t max_idx = in_memory_sparsity_repr::n_rows * in_memory_sparsity_repr::n_cols;
 
   coo_repr(size_t r, size_t c) : in_memory_sparsity_repr(r, c) {
     // initializing nonzeros and nonconstants as empty
@@ -320,6 +318,41 @@ struct coo_repr : public in_memory_sparsity_repr {
       return true;
     else
       return false;
+  }
+};
+
+struct singleton_repr : public in_memory_sparsity_repr {
+  static_var<size_t> singleton_idx;
+  static_var<size_t> singleton_status;
+
+  singleton_repr(size_t r, size_t c) : in_memory_sparsity_repr(r, c) {
+    singleton_status = ZERO;
+  }
+
+  size_t get_dense_to_sparse_idx(size_t i, size_t j) const override {
+    // only single element stored so returns index 0
+    return 0;
+  }
+
+  bool is_nonzero(size_t i, size_t j) const override {
+    return !(singleton_status == ZERO);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return singleton_status == NONCST;
+  }
+
+  void mark_constant(size_t i, size_t j, bool is_nonzero) override {
+    singleton_idx = get_flattened_index(i, j);
+    if (is_nonzero)
+      singleton_status = NONZERO_CST;
+    else
+      singleton_status = ZERO;
+  }
+
+  void mark_nonconstant(size_t i, size_t j) override {
+    singleton_idx = get_flattened_index(i, j);
+    singleton_status = NONCST;
   }
 };
 
@@ -546,11 +579,19 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
       storage<Scalar>(r, c), compress(comp) {
     if (compress == UNCOMPRESSED)
       sparsity_tracker = std::make_shared<uncompressed_repr>(r, c);
-    else
+    else if (compress == COMPRESSED)
       sparsity_tracker = std::make_shared<coo_repr>(r, c);
+    else if (compress == SINGLETON)
+      sparsity_tracker = std::make_shared<singleton_repr>(r, c);
 
-    nonzero_csts.resize(r * c);
-    resize_arr(m_array, r * c);
+    if (compress != SINGLETON) {
+      nonzero_csts.resize(r * c);
+      resize_arr(m_array, r * c);
+    }
+    else {
+      nonzero_csts.resize(1);
+      resize_arr(m_array, 1);
+    }
   }
 
   dyn_var<EigenMatrix<Scalar>> denseify() const override {
@@ -684,12 +725,14 @@ struct matrix_layout : public zero_cst_status_checkable {
     if (!is_batched) {
       switch(backend_mem_repr) {
         case UNROLLED:
+          //std::cout << "warn: compression ignored for UNROLLED, defacto compressed\n";
           m_storage = std::make_shared<unrolled_storage<Scalar>>(n_rows, n_cols);
           break;
         case FLATTENED:
           m_storage = std::make_shared<flattened_storage<Scalar>>(compress, n_rows, n_cols);
           break;
         case EIGENMATRIX:
+          //std::cout << "warn: compression ignored for EIGENMATRIX, default no sparsity tracking\n";
           m_storage = std::make_shared<eigen_matrix_storage<Scalar>>(n_rows, n_cols);
           break;
       }
