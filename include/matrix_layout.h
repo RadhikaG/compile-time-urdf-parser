@@ -78,6 +78,9 @@ template <typename Prim>
 struct sparse_entry {
   dyn_var<Prim> dyn_entry;
   static_var<inner_type_t<Prim>> static_entry; // fill value
+  sparse_entry() {}
+  sparse_entry(const dyn_var<Prim> &de) : dyn_entry(de) {}
+  sparse_entry(Prim se) : static_entry(se) {}
 };
 
 struct in_memory_sparsity_repr : public zero_cst_status_checkable {
@@ -847,10 +850,7 @@ struct matrix_layout : public zero_cst_status_checkable {
   void set_zero() {
     for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
       for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
-        if (i == 2 && j == 0)
-          set_entry_to_constant(i, j, 0);
-        else
-          set_entry_to_constant(i, j, 0);
+        set_entry_to_constant(i, j, 0);
       }
     }
   }
@@ -892,6 +892,69 @@ struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
 
   bool is_nonconstant(size_t i, size_t j) const override {
     return m_mat.is_nonconstant(i, j);
+  }
+};
+
+template <typename Scalar>
+struct matrix_layout_expr_scalar : public matrix_layout_expr<Scalar> {
+  const struct sparse_entry<Scalar> m_se;
+  static_var<int> is_nonzero_status;
+  static_var<int> is_nonconstant_status;
+  std::vector<size_t> expr_shape;
+
+  matrix_layout_expr_scalar(const dyn_var<Scalar> &_scalar, size_t broadcast_rows, size_t broadcast_cols) : m_se(_scalar), is_nonzero_status(true), is_nonconstant_status(true) {
+    expr_shape.push_back(broadcast_rows);
+    expr_shape.push_back(broadcast_cols);
+  }
+
+  matrix_layout_expr_scalar(const Scalar &_scalar, size_t broadcast_rows, size_t broadcast_cols) : m_se(_scalar) {
+    is_nonconstant_status = false;
+    if (_scalar == 0)
+      is_nonzero_status = false;
+    else
+      is_nonzero_status = true;
+    expr_shape.push_back(broadcast_rows);
+    expr_shape.push_back(broadcast_cols);
+  }
+
+  const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
+    dyn_var<EigenMatrix<Scalar>> mat;
+    mat.set_matrix_fixed_size(expr_shape[0], expr_shape[1]);
+    for (static_var<size_t> i = 0; i < expr_shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < expr_shape[1]; j = j+1) {
+        if (!is_nonconstant_status)
+          mat.coeffRef(i, j) = m_se.static_entry;
+        else
+          mat.coeffRef(i, j) = m_se.dyn_entry;
+      }
+    }
+    return mat;
+  }
+
+  const builder::builder gen_entry_at(size_t i, size_t j) const override {
+    if (is_nonconstant(i, j))
+      return m_se.dyn_entry;
+    return m_se.static_entry;
+  }
+
+  Scalar gen_constant_entry_at(size_t i, size_t j) const override {
+    return m_se.static_entry;
+  }
+  
+  std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  bool is_batched(size_t i, size_t j) const override {
+    return false;
+  }
+
+  bool is_nonzero(size_t i, size_t j) const override {
+    return is_nonzero_status;
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return is_nonconstant_status;
   }
 };
 
@@ -1104,6 +1167,73 @@ struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Scalar> {
 
   bool is_nonconstant(size_t i, size_t j) const override {
     return expr1.is_nonconstant(i, j);
+  }
+};
+
+template <typename Scalar>
+struct matrix_layout_expr_cwise_mul : public matrix_layout_expr<Scalar> {
+  const struct matrix_layout_expr<Scalar> &expr1;
+  const struct matrix_layout_expr<Scalar> &expr2;
+
+  using matrix_layout_expr<Scalar>::is_constant;
+
+  std::vector<size_t> expr_shape;
+
+  matrix_layout_expr_cwise_mul(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1, shape2;
+    shape1 = expr1.get_expr_shape();
+    shape2 = expr2.get_expr_shape();
+
+    assert(shape1[0] == shape2[0] && shape1[1] == shape2[1] && "shapes must match");
+
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
+  }
+
+  const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
+    // todo change to cwise mul
+    return expr1.gen_dyn_matrix() * expr2.gen_dyn_matrix();
+  }
+
+  const builder::builder gen_entry_at(size_t i, size_t j) const override {
+    if (!is_batched(i, j)) {
+      return expr1.gen_entry_at(i, j) * expr2.gen_entry_at(i, j);
+    }
+    else {
+      // will contain eigen specific calls for handling constants in a special way
+      // if (expr1.is_batched() && !expr2.is_batched()) ... is the X_J * X_T case
+      assert(false && "todo");
+    }
+  }
+
+  Scalar gen_constant_entry_at(size_t i, size_t j) const override {
+    assert(is_constant(i, j) && "entry isn't constant");
+    if (!is_batched(i, j)) {
+      assert(expr1.is_constant(i, j) && expr2.is_constant(i, j) && "both exprs must be constant");
+      return expr1.gen_constant_entry_at(i, j) * expr2.gen_constant_entry_at(i, j);
+    }
+    else {
+      // will contain eigen specific calls for handling constants in a special way
+      assert(false && "todo");
+    }
+  }
+  
+  std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  bool is_batched(size_t i, size_t j) const override {
+    // todo
+    return expr1.is_batched(i, j) || expr2.is_batched(i, j);
+  }
+
+  bool is_nonzero(size_t i, size_t j) const override {
+    return expr1.is_nonzero(i, j) && expr2.is_nonzero(i, j);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return expr1.is_nonconstant(i, j) || expr2.is_nonconstant(i, j);
   }
 };
 
