@@ -111,6 +111,16 @@ operator+=(E1 &v1, const E2 &v2) {
   v1 = v1 + v2;
 }
 
+template <typename E1>
+// sets return type to matrix_layout_expr<Scalar>...
+typename std::enable_if<is_acceptable_rhs_matrix_layout<E1>::value,
+                        const matrix_layout_expr<typename is_acceptable_rhs_matrix_layout<E1>::scalar_type> &>::type
+// ...for transpose(matrix)
+transpose(const E1 &v1) {
+  return *new matrix_layout_expr_transpose<typename is_acceptable_rhs_matrix_layout<E1>::scalar_type>(
+      is_acceptable_rhs_matrix_layout<E1>::cast(v1));
+}
+
 /** Blocked matrix layouts with individual matrix blocks sitting inside them **/
 
 template <typename T, typename = void>

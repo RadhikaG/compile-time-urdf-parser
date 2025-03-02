@@ -80,7 +80,7 @@ struct sparse_entry {
   static_var<inner_type_t<Prim>> static_entry; // fill value
   sparse_entry() {}
   sparse_entry(const dyn_var<Prim> &de) : dyn_entry(de) {}
-  sparse_entry(Prim se) : static_entry(se) {}
+  sparse_entry(Prim &se) : static_entry(se) {}
 };
 
 struct in_memory_sparsity_repr : public zero_cst_status_checkable {
@@ -958,6 +958,51 @@ struct matrix_layout_expr_scalar : public matrix_layout_expr<Scalar> {
   }
 };
 
+template <typename Scalar>
+struct matrix_layout_expr_transpose : public matrix_layout_expr<Scalar> {
+  const struct matrix_layout_expr<Scalar> &expr1;
+  std::vector<size_t> expr_shape;
+
+  matrix_layout_expr_transpose(const struct matrix_layout_expr<Scalar> &expr1) : expr1(expr1) {
+    expr_shape.push_back(expr1.get_expr_shape()[1]);
+    expr_shape.push_back(expr1.get_expr_shape()[0]);
+  }
+
+  const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
+    dyn_var<EigenMatrix<Scalar>> mat;
+    mat.set_matrix_fixed_size(expr_shape[0], expr_shape[1]);
+    for (static_var<size_t> i = 0; i < expr_shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < expr_shape[1]; j = j+1) {
+        mat.coeffRef(i, j) = gen_entry_at(i, j);
+      }
+    }
+    return mat;
+  }
+
+  const builder::builder gen_entry_at(size_t i, size_t j) const override {
+    return expr1.gen_entry_at(j, i);
+  }
+
+  Scalar gen_constant_entry_at(size_t i, size_t j) const override {
+    return expr1.gen_constant_entry_at(j, i);
+  }
+  
+  std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  bool is_batched(size_t i, size_t j) const override {
+    return expr1.is_batched(j, i);
+  }
+
+  bool is_nonzero(size_t i, size_t j) const override {
+    return expr1.is_nonzero(j, i);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return expr1.is_nonconstant(j, i);
+  }
+};
 
 template <typename Scalar>
 struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
