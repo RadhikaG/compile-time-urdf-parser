@@ -333,17 +333,27 @@ struct singleton_repr : public in_memory_sparsity_repr {
   }
 
   size_t get_dense_to_sparse_idx(size_t i, size_t j) const override {
+    assert(singleton_idx == get_flattened_index(i, j) && "non singleton element is never stored");
     // only single element stored so returns index 0
     return 0;
   }
 
   bool is_nonzero(size_t i, size_t j) const override {
-    return !(singleton_status == ZERO);
+    if (singleton_idx != get_flattened_index(i, j))
+      return false;
+    else
+      return !(singleton_status == ZERO);
   }
 
   bool is_nonconstant(size_t i, size_t j) const override {
-    return singleton_status == NONCST;
+    if (singleton_idx != get_flattened_index(i, j))
+      return false;
+    else
+      return singleton_status == NONCST;
   }
+
+  // mark_constant and mark_nonconstant only treat the last (i,j) they were run for,
+  // as the singleton element.
 
   void mark_constant(size_t i, size_t j, bool is_nonzero) override {
     singleton_idx = get_flattened_index(i, j);
@@ -587,13 +597,14 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
     else if (compress == SINGLETON)
       sparsity_tracker = std::make_shared<singleton_repr>(r, c);
 
-    if (compress != SINGLETON) {
-      nonzero_csts.resize(r * c);
-      resize_arr(m_array, r * c);
-    }
-    else {
+    if (compress == SINGLETON) {
+      // todo allow unrolled storage to support SINGLETON
       nonzero_csts.resize(1);
       resize_arr(m_array, 1);
+    }
+    else {
+      nonzero_csts.resize(r * c);
+      resize_arr(m_array, r * c);
     }
   }
 
