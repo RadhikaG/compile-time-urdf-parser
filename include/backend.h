@@ -245,14 +245,21 @@ struct vector_t: public builder::custom_type<T> {
 	typedef T dereference_type;
 	dyn_var<void(int)> size = builder::with_name("size");
   dyn_var<int(void)> resize = builder::with_name("resize");
+  dyn_var<T(void)> push_back = builder::with_name("push_back");
 };
 
 namespace ctup{
   namespace backend {
   builder::dyn_var<double(double)> sin = builder::as_global("sin");
   builder::dyn_var<double(double)> cos = builder::as_global("cos");
+  
   builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>,
   vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>)> Sphere_Environment_Collision = builder::as_global("Sphere_Environment_Collision");
+
+  builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, double,
+   vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<double>,
+   vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<double>,
+   vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<double>>)> self_collision = builder::as_global("self_collision");
 
   template<typename Scalar, int Dim>
   builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> min = builder::as_global("min");
