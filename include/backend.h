@@ -256,10 +256,10 @@ namespace ctup{
   builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>,
   vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>)> Sphere_Environment_Collision = builder::as_global("Sphere_Environment_Collision");
 
-  builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, double,
-   vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<double>,
-   vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<ctup::BlazeStaticVector<double,16>>, vector_t<double>,
-   vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<ctup::BlazeStaticVector<double,16>>>, vector_t<vector_t<double>>)> self_collision = builder::as_global("self_collision");
+  builder::dyn_var<int(dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<double>,
+   dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<double>>,
+   dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<double>,
+   dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<double>>)> self_collision = builder::as_global("self_collision");
 
   template<typename Scalar, int Dim>
   builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> min = builder::as_global("min");
