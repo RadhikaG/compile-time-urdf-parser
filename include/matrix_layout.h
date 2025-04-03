@@ -29,6 +29,20 @@ struct zero_cst_status_checkable {
 };
 
 template <typename Scalar>
+struct zero_cst_status_storable : public zero_cst_status_checkable {
+  virtual builder::builder get_entry(size_t i, size_t j) const = 0;
+  virtual Scalar get_constant_entry(size_t i, size_t j) const = 0;
+  virtual dyn_var<EigenMatrix<Scalar>> denseify() const = 0;
+  virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) = 0;
+  virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) = 0;
+  virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) = 0;
+  virtual void set_zero() = 0;
+  virtual std::vector<size_t> get_expr_shape() const;
+  virtual bool is_batching_enabled() const;
+  virtual ~zero_cst_status_storable() = default;
+};
+
+template <typename Scalar>
 struct inner_type { 
   using type = Scalar;
 };
@@ -427,7 +441,7 @@ template <typename Scalar>
 struct matrix_layout_expr_leaf;
 
 template <typename Scalar>
-struct storage : public zero_cst_status_checkable {
+struct storage : public zero_cst_status_storable<Scalar> {
   typedef std::shared_ptr<storage<Scalar>> Ptr;
 
   size_t n_rows;
@@ -455,17 +469,17 @@ struct storage : public zero_cst_status_checkable {
     assert(false && "abstract storage method call");
   }
 
-  virtual dyn_var<EigenMatrix<Scalar>> denseify() const { 
+  virtual dyn_var<EigenMatrix<Scalar>> denseify() const override { 
     trigger_abstract_method_assert();
     return dyn_var<EigenMatrix<Scalar>>();
   }
 
-  virtual Scalar get_constant_entry(size_t i, size_t j) const {
+  virtual Scalar get_constant_entry(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return -1;
   }
 
-  virtual builder::builder get_entry(size_t i, size_t j) const {
+  virtual builder::builder get_entry(size_t i, size_t j) const override {
     trigger_abstract_method_assert();
     return -1;
   }
@@ -488,9 +502,25 @@ struct storage : public zero_cst_status_checkable {
     return !is_constant(i, j);
   }
 
-  virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) { trigger_abstract_method_assert(); }
-  virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) { trigger_abstract_method_assert(); }
-  virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) { trigger_abstract_method_assert(); }
+  virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) override { trigger_abstract_method_assert(); }
+  virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) override { trigger_abstract_method_assert(); }
+  virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) override { trigger_abstract_method_assert(); }
+
+  virtual void set_zero() override {
+    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+        set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
+
+  bool is_batching_enabled() const override {
+    return false;
+  }
+
+  std::vector<size_t> get_expr_shape() const override {
+    return {n_rows, n_cols};
+  }
 };
 
 template <typename Prim>
@@ -722,10 +752,14 @@ struct eigen_matrix_storage : public storage<Scalar> {
   void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) override {
     m_matrix.coeffRef(i, j) = entry;
   }
+
+  void set_zero() override {
+    m_matrix.setZero();
+  }
 };
 
 template <typename Scalar>
-struct matrix_layout : public zero_cst_status_checkable {
+struct matrix_layout : public zero_cst_status_storable<Scalar> {
   typedef std::shared_ptr<matrix_layout<Scalar>> Ptr;
 
   typename storage<Scalar>::Ptr m_storage = nullptr;
@@ -799,7 +833,7 @@ struct matrix_layout : public zero_cst_status_checkable {
     }
   }
 
-  void operator=(const matrix_layout<Scalar> &mat) {
+  void operator=(const zero_cst_status_storable<Scalar> &mat) {
     *this = matrix_layout_expr_leaf<Scalar>(mat);
   }
 
@@ -811,7 +845,7 @@ struct matrix_layout : public zero_cst_status_checkable {
     return shape[1];
   }
 
-  dyn_var<EigenMatrix<Scalar>> denseify() const { 
+  dyn_var<EigenMatrix<Scalar>> denseify() const override {
     return m_storage->denseify();
   }
 
@@ -831,19 +865,19 @@ struct matrix_layout : public zero_cst_status_checkable {
     return m_storage->is_nonconstant(i, j);
   }
 
-  builder::builder get_entry(size_t i, size_t j) const {
+  builder::builder get_entry(size_t i, size_t j) const override {
     return m_storage->get_entry(i, j);
   }
 
-  Scalar get_constant_entry(size_t i, size_t j) const {
+  Scalar get_constant_entry(size_t i, size_t j) const override {
     return m_storage->get_constant_entry(i, j);
   }
 
-  void set_entry_to_constant(size_t i, size_t j, Scalar val) { 
+  void set_entry_to_constant(size_t i, size_t j, Scalar val) override { 
     m_storage->set_entry_to_constant(i, j, val);
   }
 
-  void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) {
+  void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) override {
     m_storage->set_entry_to_nonconstant(i, j, entry);
   }
 
@@ -858,23 +892,31 @@ struct matrix_layout : public zero_cst_status_checkable {
     }
   }
 
-  void set_zero() {
-    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
-      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
-        set_entry_to_constant(i, j, 0);
-      }
-    }
+  void set_zero() override {
+    m_storage->set_zero();
+  }
+
+  void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) override {
+    m_storage->set_matrix(mat);
+  }
+
+  bool is_batching_enabled() const override {
+    return is_batched;
+  }
+
+  std::vector<size_t> get_expr_shape() const override {
+    return {shape[0], shape[1]};
   }
 };
 
 template <typename Scalar>
 struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout<Scalar> &m_mat;
+  const struct zero_cst_status_storable<Scalar> &m_mat;
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_leaf(const struct matrix_layout<Scalar> &mat) : m_mat(mat) {
-    expr_shape.push_back(m_mat.shape[0]);
-    expr_shape.push_back(m_mat.shape[1]);
+  matrix_layout_expr_leaf(const struct zero_cst_status_storable<Scalar> &mat) : m_mat(mat) {
+    expr_shape.push_back(m_mat.get_expr_shape()[0]);
+    expr_shape.push_back(m_mat.get_expr_shape()[1]);
   }
 
   const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
@@ -894,7 +936,7 @@ struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
   }
 
   bool is_batched(size_t i, size_t j) const override {
-    return m_mat.is_batched;
+    return m_mat.is_batching_enabled();
   }
 
   bool is_nonzero(size_t i, size_t j) const override {

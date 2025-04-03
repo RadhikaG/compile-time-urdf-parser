@@ -80,7 +80,7 @@ struct blocked_layout_expr_leaf;
 // base class for composite matrix_layouts that hold
 // other layouts within them.
 template <typename Scalar>
-struct blocked_layout : public zero_cst_status_checkable {
+struct blocked_layout : public zero_cst_status_storable<Scalar> {
   const size_t shape[2];
 
   std::map<std::pair<size_t, size_t>, typename matrix_layout<Scalar>::Ptr> block_idx_to_block;
@@ -96,7 +96,7 @@ struct blocked_layout : public zero_cst_status_checkable {
       shape{_n_rows, _n_cols} {}
 
   size_t get_flattened_index(size_t i, size_t j) const {
-    size_t  flattened = i * shape[1] + j;
+    size_t flattened = i * shape[1] + j;
     assert(flattened < shape[0] * shape[1] && "out of bounds");
     return flattened;
   }
@@ -230,7 +230,7 @@ struct blocked_layout : public zero_cst_status_checkable {
     return !is_constant(i, j);
   }
 
-  builder::builder get_entry(size_t i, size_t j) const {
+  builder::builder get_entry(size_t i, size_t j) const override {
     auto block_idx = get_block_idx(i, j);
 
     // unset blocks are assumed to be zero
@@ -241,7 +241,7 @@ struct blocked_layout : public zero_cst_status_checkable {
     return block_idx_to_block.at(block_idx)->get_entry(rel_idx.first, rel_idx.second);
   }
 
-  Scalar get_constant_entry(size_t i, size_t j) const {
+  Scalar get_constant_entry(size_t i, size_t j) const override {
     auto block_idx = get_block_idx(i, j);
 
     // unset blocks are assumed to be zero
@@ -252,7 +252,7 @@ struct blocked_layout : public zero_cst_status_checkable {
     return block_idx_to_block.at(block_idx)->get_constant_entry(rel_idx.first, rel_idx.second);
   }
 
-  void set_entry_to_constant(size_t i, size_t j, Scalar val) { 
+  void set_entry_to_constant(size_t i, size_t j, Scalar val) override {
     auto block_idx = get_block_idx(i, j);
 
     bool found_block = is_block_set(block_idx.first, block_idx.second);
@@ -269,7 +269,7 @@ struct blocked_layout : public zero_cst_status_checkable {
     block_idx_to_block[block_idx]->set_entry_to_constant(rel_idx.first, rel_idx.second, val);
   }
 
-  void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) {
+  void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) override {
     auto block_idx = get_block_idx(i, j);
 
     assert(is_block_set(block_idx.first, block_idx.second) && 
@@ -279,7 +279,7 @@ struct blocked_layout : public zero_cst_status_checkable {
     block_idx_to_block[block_idx]->set_entry_to_nonconstant(rel_idx.first, rel_idx.second, entry);
   }
 
-  const dyn_var<EigenMatrix<Scalar>> denseify() {
+  dyn_var<EigenMatrix<Scalar>> denseify() const override {
     dyn_var<EigenMatrix<Scalar>> mat;
     mat.set_matrix_fixed_size(shape[0], shape[1]);
     for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
@@ -288,6 +288,34 @@ struct blocked_layout : public zero_cst_status_checkable {
       }
     }
     return mat;
+  }
+
+  void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) override {
+    // this func will usually not work for blocked_layout because
+    // blocked_layout usually has blocks zero'd out / unavailable at compile-time
+    // if the blocked_layout is fully element-wise sparse only then will
+    // this func work
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        set_entry_to_nonconstant(i, j, const_cast<dyn_var<EigenMatrix<Scalar>>&>(mat).coeffRef(i, j));
+      }
+    }
+  }
+
+  void set_zero() override {
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
+
+  bool is_batching_enabled() const override {
+    return false;
+  }
+
+  std::vector<size_t> get_expr_shape() const override {
+    return {shape[0], shape[1]};
   }
 
   void operator=(const blocked_layout_expr<Scalar> &rhs) {
