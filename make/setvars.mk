@@ -13,7 +13,7 @@ LDFLAGS=
 
 CFLAGS_INTERNAL=-std=c++17 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wmissing-declarations 
 CFLAGS_INTERNAL+=-Woverloaded-virtual -Wno-deprecated -Wdelete-non-virtual-dtor -Werror -Wno-vla -pedantic-errors 
-CFLAGS_INTERNAL+=-Wno-unused-but-set-variable -Wno-unused-variable
+CFLAGS_INTERNAL+=-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function
 
 CFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) compile-flags)
 LDFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) linker-flags)

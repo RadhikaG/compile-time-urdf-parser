@@ -753,9 +753,9 @@ struct eigen_matrix_storage : public storage<Scalar> {
     m_matrix.coeffRef(i, j) = entry;
   }
 
-  void set_zero() override {
-    m_matrix.setZero();
-  }
+  //void set_zero() override {
+  //  m_matrix.setZero();
+  //}
 };
 
 template <typename Scalar>
