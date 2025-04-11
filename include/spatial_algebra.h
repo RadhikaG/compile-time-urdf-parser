@@ -1,6 +1,7 @@
 #ifndef SPATIALALGEBRA_H
 #define SPATIALALGEBRA_H
-
+// rghosal todo: don't use this wrapper header for now
+//
 #include "matrix_layout.h"
 #include "matrix_layout_composite.h"
 #include "matrix_operators.h"
