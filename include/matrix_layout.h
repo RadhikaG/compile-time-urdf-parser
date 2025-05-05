@@ -6,7 +6,9 @@
 #include "builder/forward_declarations.h"
 #include "builder/static_var.h"
 #include "builder/lib/utils.h"
+#include "builder/array.h"
 #include <memory>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -37,8 +39,8 @@ struct zero_cst_status_storable : public zero_cst_status_checkable {
   virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) = 0;
   virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) = 0;
   virtual void set_zero() = 0;
-  virtual std::vector<size_t> get_expr_shape() const;
-  virtual bool is_batching_enabled() const;
+  virtual std::vector<size_t> get_expr_shape() const = 0;
+  virtual bool is_batching_enabled() const = 0;
   virtual ~zero_cst_status_storable() = default;
 };
 
@@ -52,11 +54,24 @@ struct inner_type<ctup::EigenMatrix<Scalar, _Rows, _Cols>> {
   using type = Scalar;
 };
 
+template <typename Scalar, int _Rows, int _Cols>
+struct inner_type<ctup::BlazeStaticMatrix<Scalar, _Rows, _Cols>> {
+  using type = Scalar;
+};
+
+template <typename Scalar, int _Rows>
+struct inner_type<ctup::BlazeStaticVector<Scalar, _Rows>> {
+  using type = Scalar;
+};
+
 template <typename Scalar>
 struct is_Matrix : std::false_type {};
 
 template <typename Scalar ,int _Rows, int _Cols>
 struct is_Matrix<ctup::EigenMatrix<Scalar, _Rows, _Cols>> : std::true_type {};
+
+template <typename Scalar ,int _Rows, int _Cols>
+struct is_Matrix<ctup::BlazeStaticMatrix<Scalar, _Rows, _Cols>> : std::true_type {};
 
 template <typename Prim>
 inline constexpr bool is_Matrix_v = is_Matrix<Prim>::value;
@@ -515,6 +530,7 @@ struct storage : public zero_cst_status_storable<Scalar> {
   }
 
   bool is_batching_enabled() const override {
+    trigger_abstract_method_assert();
     return false;
   }
 
@@ -529,12 +545,12 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
   using storage<Scalar>::n_rows;
   using storage<Scalar>::n_cols;
 
-  std::vector<sparse_entry<Prim>> soup;
+  builder::array<sparse_entry<Prim>> soup;
   uncompressed_repr sparsity_tracker;
 
   unrolled_storage(size_t r, size_t c) : 
       storage<Scalar>(r, c), sparsity_tracker(r, c) {
-    soup.resize(r * c);
+    soup.set_size(r * c);
   }
 
   dyn_var<EigenMatrix<Scalar>> denseify() const override {
@@ -602,6 +618,10 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
       }
     }
   }
+
+  bool is_batching_enabled() const override {
+    return is_Matrix_v<Prim>;
+  }
 };
 
 template <typename Prim>
@@ -638,8 +658,8 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
     }
   }
 
+  // not batched
   dyn_var<EigenMatrix<Scalar>> denseify() const override {
-    // needs to change for batched impl
     dyn_var<EigenMatrix<Scalar>> mat;
     mat.set_matrix_fixed_size(n_rows, n_cols);
     for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
@@ -647,10 +667,9 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
         mat.coeffRef(i, j) = get_entry(i, j);
       }
     }
-
     return mat;
   }
-
+  
   Scalar get_constant_entry(size_t i, size_t j) const override {
     std::string error_msg = storage<Scalar>::append_idx_error_msg("is not constant", i, j);
     assert(is_constant(i, j) && error_msg.c_str());
@@ -705,6 +724,10 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
       }
     }
   }
+
+  bool is_batching_enabled() const override {
+    return is_Matrix_v<Prim>;
+  }
 };
 
 template <typename Scalar>
@@ -753,6 +776,12 @@ struct eigen_matrix_storage : public storage<Scalar> {
     m_matrix.coeffRef(i, j) = entry;
   }
 
+  bool is_batching_enabled() const override {
+    assert(false && "no batching allowed for eigen matrix container");
+  }
+
+  // commented because turns out eigen's setZero method for small matrices
+  // is slower than setting every element to zero manually
   //void set_zero() override {
   //  m_matrix.setZero();
   //}
@@ -792,10 +821,10 @@ struct matrix_layout : public zero_cst_status_storable<Scalar> {
     else {
       switch(backend_mem_repr) {
         case UNROLLED:
-          m_storage = std::make_shared<unrolled_storage<EigenMatrix<Scalar, SIMD_WIDTH, 1>>>(n_rows, n_cols);
+          m_storage = std::make_shared<unrolled_storage<BlazeStaticVector<Scalar, SIMD_WIDTH>>>(n_rows, n_cols);
           break;
         case FLATTENED:
-          m_storage = std::make_shared<flattened_storage<EigenMatrix<Scalar, SIMD_WIDTH, 1>>>(compress, n_rows, n_cols);
+          m_storage = std::make_shared<flattened_storage<BlazeStaticVector<Scalar, SIMD_WIDTH>>>(compress, n_rows, n_cols);
           break;
         case EIGENMATRIX:
           assert(false && "simultaneous EigenMatrix and batched repr illegal, only Matrix of scalar value is defined");
@@ -903,7 +932,7 @@ struct matrix_layout : public zero_cst_status_storable<Scalar> {
   bool is_batching_enabled() const override {
     return is_batched;
   }
-
+  
   std::vector<size_t> get_expr_shape() const override {
     return {shape[0], shape[1]};
   }

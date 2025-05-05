@@ -48,7 +48,7 @@ struct EigenMatrix {
   }
 };
 
-template <typename Scalar, int Rows_, int Cols_>
+template <typename Scalar, int Rows_=-1, int Cols_=-1>
 struct BlazeStaticMatrix {
   static constexpr const char* type_name = "blaze::StaticMatrix";
 
@@ -68,7 +68,7 @@ struct BlazeStaticMatrix {
   }
 };
 
-template <typename Scalar, int Dim>
+template <typename Scalar, int Dim=-1>
 struct BlazeStaticVector {
   static constexpr const char* type_name = "blaze::StaticVector";
 
