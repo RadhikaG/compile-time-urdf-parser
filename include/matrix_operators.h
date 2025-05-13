@@ -248,15 +248,15 @@ transpose(const E1 &v1) {
 
 /** Blocked matrix layouts with individual matrix blocks sitting inside them **/
 
-//template <typename E1, typename E2>
-//// sets return type to blocked_layout_expr<Scalar>...
-//typename std::enable_if<are_both_blocked<E1, E2>,
-//                        const blocked_layout_expr<batching_common_type<E1, E2>> &>::type
-//// ...for blocked_matrix * blocked_matrix
-//operator*(const E1 &v1, const E2 &v2) {
-//  return *new blocked_layout_expr_mul<batching_common_type<E1, E2>, prim_type_t<E1>, prim_type_t<E2>>(
-//      is_acceptable_rhs_blocked_layout<E1>::cast(v1), is_acceptable_rhs_blocked_layout<E2>::cast(v2));
-//}
+template <typename E1, typename E2>
+// sets return type to blocked_layout_expr<Scalar>...
+typename std::enable_if<are_both_blocked<E1, E2>,
+                        const blocked_layout_expr<batching_common_type<E1, E2>> &>::type
+// ...for blocked_matrix * blocked_matrix
+operator*(const E1 &v1, const E2 &v2) {
+  return *new blocked_layout_expr_mul<batching_common_type<E1, E2>, prim_type_t<E1>, prim_type_t<E2>>(
+      is_acceptable_rhs_blocked_layout<E1>::cast(v1), is_acceptable_rhs_blocked_layout<E2>::cast(v2));
+}
 
 }
 

@@ -9,8 +9,10 @@ using builder::static_var;
 
 namespace ctup {
 
-template <typename Scalar>
+template <typename Prim>
 struct blocked_layout_expr : public zero_cst_status_checkable {
+  using Scalar = inner_type_t<Prim>;
+
   void trigger_abstract_method_assert() const {
     assert(false && "abstract blocked_layout_expr method call");
   }
@@ -62,7 +64,7 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
     return !is_block_nonzero(b_i, b_j);
   }
 
-  virtual const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const {
+  virtual const matrix_layout_expr<Prim> &gen_block_expr(size_t b_i, size_t b_j) const {
     trigger_abstract_method_assert();
     return *new matrix_layout_expr<Scalar>();
   }
@@ -74,16 +76,18 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
 };
 
 // fwd decl
-template <typename Scalar>
+template <typename Prim>
 struct blocked_layout_expr_leaf;
 
 // base class for composite matrix_layouts that hold
 // other layouts within them.
-template <typename Scalar>
-struct blocked_layout : public zero_cst_status_storable<Scalar> {
+template <typename Prim>
+struct blocked_layout : public zero_cst_status_storable<Prim> {
+  using Scalar = inner_type_t<Prim>;
+
   const size_t shape[2];
 
-  std::map<std::pair<size_t, size_t>, typename matrix_layout<Scalar>::Ptr> block_idx_to_block;
+  std::map<std::pair<size_t, size_t>, typename matrix_layout<Prim>::Ptr> block_idx_to_block;
 
   // block_idx to top left corner of block
   // std::vector because each block guaranteed to have a top left corner
@@ -194,7 +198,7 @@ struct blocked_layout : public zero_cst_status_storable<Scalar> {
     return std::make_pair(i - block_top_left.first, j - block_top_left.second);
   }
 
-  void set_new_block(size_t b_i, size_t b_j, typename matrix_layout<Scalar>::Ptr block) {
+  void set_new_block(size_t b_i, size_t b_j, typename matrix_layout<Prim>::Ptr block) {
     assert(!is_block_set(b_i, b_j) && "block already exists");
 
     block_idx_to_block[std::make_pair(b_i, b_j)] = block;
@@ -279,8 +283,8 @@ struct blocked_layout : public zero_cst_status_storable<Scalar> {
     block_idx_to_block[block_idx]->set_entry_to_nonconstant(rel_idx.first, rel_idx.second, entry);
   }
 
-  dyn_var<EigenMatrix<Scalar>> denseify() const override {
-    dyn_var<EigenMatrix<Scalar>> mat;
+  dyn_var<EigenMatrix<Prim>> denseify() const override {
+    dyn_var<EigenMatrix<Prim>> mat;
     mat.set_matrix_fixed_size(shape[0], shape[1]);
     for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
       for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
@@ -318,7 +322,7 @@ struct blocked_layout : public zero_cst_status_storable<Scalar> {
     return {shape[0], shape[1]};
   }
 
-  void operator=(const blocked_layout_expr<Scalar> &rhs) {
+  void operator=(const blocked_layout_expr<Prim> &rhs) {
     for (static_var<size_t> b_i = 0; b_i < n_blocks_r; b_i = b_i+1) {
       for (static_var<size_t> b_j = 0; b_j < n_blocks_c; b_j = b_j+1) {
         if (rhs.is_block_nonzero(b_i, b_j)) {
@@ -350,19 +354,19 @@ struct blocked_layout : public zero_cst_status_storable<Scalar> {
     }
   }
 
-  void operator=(const blocked_layout<Scalar> &mat) {
-    *this = blocked_layout_expr_leaf<Scalar>(mat);
+  void operator=(const blocked_layout<Prim> &mat) {
+    *this = blocked_layout_expr_leaf<Prim>(mat);
   }
 };
 
-template <typename Scalar>
-struct blocked_layout_expr_leaf : public blocked_layout_expr<Scalar> {
-  const struct blocked_layout<Scalar> &m_mat;
+template <typename Prim>
+struct blocked_layout_expr_leaf : public blocked_layout_expr<Prim> {
+  const struct blocked_layout<Prim> &m_mat;
 
   std::vector<size_t> expr_shape;
   std::vector<size_t> expr_block_shape;
 
-  blocked_layout_expr_leaf(const struct blocked_layout<Scalar> &blocked_mat)
+  blocked_layout_expr_leaf(const struct blocked_layout<Prim> &blocked_mat)
       : m_mat(blocked_mat) {
     expr_shape.push_back(m_mat.shape[0]);
     expr_shape.push_back(m_mat.shape[1]);
@@ -392,24 +396,24 @@ struct blocked_layout_expr_leaf : public blocked_layout_expr<Scalar> {
     return {block_shape.first, block_shape.second};
   }
 
-  const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const override {
+  const matrix_layout_expr<Prim> &gen_block_expr(size_t b_i, size_t b_j) const override {
     // future todo: this should return a matrix_layout of zeros
     assert(m_mat.is_block_set(b_i, b_j) && 
             "(b_i, b_j) has no inner matrix_layout associated with it because it is zero, \
             check if block is nonzero before calling gen_block_expr");
-    return *new matrix_layout_expr_leaf<Scalar>(*m_mat.block_idx_to_block.at(std::make_pair(b_i, b_j)));
+    return *new matrix_layout_expr_leaf<Prim>(*m_mat.block_idx_to_block.at(std::make_pair(b_i, b_j)));
   }
 };
 
-template <typename Scalar>
-struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
-  const struct blocked_layout_expr<Scalar> &expr1;
-  const struct blocked_layout_expr<Scalar> &expr2;
+template <typename PRet, typename P1, typename P2>
+struct blocked_layout_expr_mul : public blocked_layout_expr<PRet> {
+  const struct blocked_layout_expr<P1> &expr1;
+  const struct blocked_layout_expr<P2> &expr2;
 
   std::vector<size_t> expr_shape;
   std::vector<size_t> expr_block_shape;
 
-  blocked_layout_expr_mul(const struct blocked_layout_expr<Scalar> &expr1, const struct blocked_layout_expr<Scalar> &expr2)
+  blocked_layout_expr_mul(const struct blocked_layout_expr<P1> &expr1, const struct blocked_layout_expr<P2> &expr2)
       : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
@@ -475,7 +479,7 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
     return {inner_shape1[0], inner_shape2[1]};
   }
 
-  const matrix_layout_expr<Scalar> &gen_mac_chain_recurse(size_t b_i, size_t b_j, size_t b_k) const {
+  const matrix_layout_expr<PRet> &gen_mac_chain_recurse(size_t b_i, size_t b_j, size_t b_k) const {
     // check block matmul validity
     std::vector<size_t> inner_shape1 = expr1.get_block_inner_shape(b_i, b_k);
     std::vector<size_t> inner_shape2 = expr2.get_block_inner_shape(b_k, b_j);
@@ -504,7 +508,7 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<Scalar> {
     }
   }
 
-  const matrix_layout_expr<Scalar> &gen_block_expr(size_t b_i, size_t b_j) const override {
+  const matrix_layout_expr<PRet> &gen_block_expr(size_t b_i, size_t b_j) const override {
     return gen_mac_chain_recurse(b_i, b_j, 0);
   }
 };
