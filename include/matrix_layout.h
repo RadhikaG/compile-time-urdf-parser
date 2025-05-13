@@ -78,8 +78,7 @@ struct zero_cst_status_storable : public zero_cst_status_checkable {
 
   virtual builder::builder get_entry(size_t i, size_t j) const = 0;
   virtual Scalar get_constant_entry(size_t i, size_t j) const = 0;
-  // denseify return type needs to change based on Prim/Scalar
-  virtual dyn_var<EigenMatrix<Prim>> denseify() const = 0;
+  virtual dyn_var<EigenMatrix<Scalar>> denseify() const = 0;
   virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) = 0;
   virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) = 0;
   virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) = 0;
@@ -496,9 +495,38 @@ struct storage : public zero_cst_status_storable<Prim> {
     assert(false && "abstract storage method call");
   }
 
-  virtual dyn_var<EigenMatrix<Prim>> denseify() const override { 
-    trigger_abstract_method_assert();
-    return dyn_var<EigenMatrix<Prim>>();
+  virtual dyn_var<EigenMatrix<Scalar>> denseify() const override {
+    dyn_var<EigenMatrix<Scalar>> mat;
+    if (!is_batching_enabled()) {
+      mat.set_matrix_fixed_size(n_rows, n_cols);
+      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+          mat(i, j) = get_entry(i, j);
+        }
+      }
+    }
+    else {
+      // flattened output format
+      // flattened idx (i*n_cols+j): (SIMD_WIDTH-wide rowVec)
+      // ... n_rows*n_cols lines
+      // todo: SIMD_WIDTH should later be derived from Prim using template magic
+      mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+          if (!is_constant(i, j)) {
+            dyn_var<Prim&> mat_entry = get_entry(i, j);
+            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+              mat(i*n_cols + j, k) = mat_entry[k];
+          }
+          else {
+            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+              mat(i*n_cols + j, k) = get_constant_entry(i, j);
+          }
+        }
+      }
+    }
+
+    return mat;
   }
 
   virtual Scalar get_constant_entry(size_t i, size_t j) const override {
@@ -557,6 +585,7 @@ struct unrolled_storage : public storage<Prim> {
   using storage<Prim>::n_rows;
   using storage<Prim>::n_cols;
   using storage<Prim>::get_flattened_index;
+  using storage<Prim>::denseify;
 
   builder::array<sparse_entry<Prim>> soup;
   uncompressed_repr sparsity_tracker;
@@ -564,19 +593,6 @@ struct unrolled_storage : public storage<Prim> {
   unrolled_storage(size_t r, size_t c) : 
       storage<Prim>(r, c), sparsity_tracker(r, c) {
     soup.set_size(r * c);
-  }
-
-  dyn_var<EigenMatrix<Prim>> denseify() const override {
-    // needs to change for batched impl
-    dyn_var<EigenMatrix<Prim>> mat;
-    mat.set_matrix_fixed_size(n_rows, n_cols);
-    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
-      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
-        mat.coeffRef(i, j) = get_entry(i, j);
-      }
-    }
-
-    return mat;
   }
 
   Scalar get_constant_entry(size_t i, size_t j) const override {
@@ -642,6 +658,7 @@ struct flattened_storage : public storage<Prim> {
   using Scalar = inner_type_t<Prim>;
   using storage<Prim>::n_rows;
   using storage<Prim>::n_cols;
+  using storage<Prim>::denseify;
 
   compression compress;
   in_memory_sparsity_repr::Ptr sparsity_tracker;
@@ -671,18 +688,6 @@ struct flattened_storage : public storage<Prim> {
     }
   }
 
-  // not batched
-  dyn_var<EigenMatrix<Prim>> denseify() const override {
-    dyn_var<EigenMatrix<Prim>> mat;
-    mat.set_matrix_fixed_size(n_rows, n_cols);
-    for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
-      for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
-        mat.coeffRef(i, j) = get_entry(i, j);
-      }
-    }
-    return mat;
-  }
-  
   Scalar get_constant_entry(size_t i, size_t j) const override {
     std::string error_msg = storage<Prim>::append_idx_error_msg("is not constant", i, j);
     assert(is_constant(i, j) && error_msg.c_str());
@@ -759,7 +764,7 @@ struct eigen_matrix_storage : public storage<Prim> {
       storage<Prim>(r, c), m_matrix(v) {
   }
 
-  dyn_var<EigenMatrix<Prim>> denseify() const override {
+  dyn_var<EigenMatrix<Scalar>> denseify() const override {
     return m_matrix;
   }
 
@@ -881,7 +886,7 @@ struct matrix_layout : public zero_cst_status_storable<Prim> {
     return shape[1];
   }
 
-  dyn_var<EigenMatrix<Prim>> denseify() const override {
+  dyn_var<EigenMatrix<Scalar>> denseify() const override {
     return m_storage->denseify();
   }
 
@@ -1124,7 +1129,8 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<PRet> {
   const builder::builder gen_entry_at(size_t i, size_t j) const override {
     //if (!is_batched(i, j)) {
       const size_t inner_dim = expr1.get_expr_shape()[1];
-      dyn_var<P1> sum = 0;
+      dyn_var<PRet> sum;
+      sum = 0; // quirk in blaze, it can't declare and assign sum to 0 in same stmt
       // k is inner_dim for matmul
       for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
         sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);

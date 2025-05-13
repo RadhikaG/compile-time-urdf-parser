@@ -66,7 +66,7 @@ struct blocked_layout_expr : public zero_cst_status_checkable {
 
   virtual const matrix_layout_expr<Prim> &gen_block_expr(size_t b_i, size_t b_j) const {
     trigger_abstract_method_assert();
-    return *new matrix_layout_expr<Scalar>();
+    return *new matrix_layout_expr<Prim>();
   }
 
   virtual std::vector<size_t> get_block_inner_shape(size_t b_i, size_t b_j) const {
@@ -283,14 +283,39 @@ struct blocked_layout : public zero_cst_status_storable<Prim> {
     block_idx_to_block[block_idx]->set_entry_to_nonconstant(rel_idx.first, rel_idx.second, entry);
   }
 
-  dyn_var<EigenMatrix<Prim>> denseify() const override {
-    dyn_var<EigenMatrix<Prim>> mat;
-    mat.set_matrix_fixed_size(shape[0], shape[1]);
-    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
-      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
-        mat.coeffRef(i, j) = get_entry(i, j);
+  dyn_var<EigenMatrix<Scalar>> denseify() const override {
+    const size_t n_rows = shape[0];
+    const size_t n_cols = shape[1];
+    dyn_var<EigenMatrix<Scalar>> mat;
+    if (!is_batching_enabled()) {
+      mat.set_matrix_fixed_size(n_rows, n_cols);
+      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+          mat(i, j) = get_entry(i, j);
+        }
       }
     }
+    else {
+      // flattened output format
+      // flattened idx (i*n_cols+j): (SIMD_WIDTH-wide rowVec)
+      // ... n_rows*n_cols lines
+      // todo: SIMD_WIDTH should later be derived from Prim using template magic
+      mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+        for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+          if (!is_constant(i, j)) {
+            dyn_var<Prim&> mat_entry = get_entry(i, j);
+            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+              mat(i*n_cols + j, k) = mat_entry[k];
+          }
+          else {
+            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+              mat(i*n_cols + j, k) = get_constant_entry(i, j);
+          }
+        }
+      }
+    }
+
     return mat;
   }
 
@@ -315,7 +340,7 @@ struct blocked_layout : public zero_cst_status_storable<Prim> {
   }
 
   bool is_batching_enabled() const override {
-    return false;
+    return is_Matrix_v<Prim>;
   }
 
   std::vector<size_t> get_expr_shape() const override {

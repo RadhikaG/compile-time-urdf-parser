@@ -6,4 +6,5 @@
 * sample12: sample11 just with blocked matrix\_layout config
 * sample13: debugging assignment and re-assignment in compressed layouts.
 * sample14: attempt to form minimal example to help debug copies
-* sample15: vectorized version of sample11
+* sample15: vectorized unblocked version of sample11
+* sample16: vectorized blocked version of sample11

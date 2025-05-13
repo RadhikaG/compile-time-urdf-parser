@@ -25,89 +25,123 @@ using builder::static_var;
 namespace ctup {
 
 template <typename Prim>
-struct Xform : public matrix_layout<Prim> {
+struct Translation : public matrix_layout<Prim> {
+  typedef std::shared_ptr<Translation<Prim>> Ptr;
+
   using matrix_layout<Prim>::set_entry_to_constant;
   using matrix_layout<Prim>::set_entry_to_nonconstant;
-  using matrix_layout<Prim>::set_identity;
-  using matrix_layout<Prim>::operator=;
 
+  Translation() : matrix_layout<Prim>(3, 3, SPARSE, FLATTENED, COMPRESSED) {
+    matrix_layout<Prim>::set_zero();
+  }
+
+  dyn_var<Prim> x;
+  dyn_var<Prim> y;
+  dyn_var<Prim> z;
+
+  static_var<int> joint_xform_axis;
+
+  void jcalc(const dyn_var<Prim> &q_i) {
+    if (joint_xform_axis == 'X') {
+      set_entry_to_nonconstant(1, 2, q_i);
+      set_entry_to_nonconstant(2, 1, -q_i);
+    }
+    else if (joint_xform_axis == 'Y') {
+      set_entry_to_nonconstant(2, 0, q_i);
+      set_entry_to_nonconstant(0, 2, -q_i);
+    }
+    else if (joint_xform_axis == 'Z') {
+      set_entry_to_nonconstant(0, 1, q_i);
+      set_entry_to_nonconstant(1, 0, -q_i);
+    }
+  }
+};
+
+template <typename Prim>
+struct Rotation : public matrix_layout<Prim> {
+  typedef std::shared_ptr<Rotation<Prim>> Ptr;
+
+  using matrix_layout<Prim>::set_entry_to_constant;
+  using matrix_layout<Prim>::set_entry_to_nonconstant;
   dyn_var<Prim> sinq;
   dyn_var<Prim> cosq;
 
-  static_var<int> joint_type;
   static_var<int> joint_xform_axis;
 
-  Xform() : matrix_layout<Prim>(6, 6, ctup::SPARSE, ctup::FLATTENED, ctup::COMPRESSED) {}
+  Rotation() : matrix_layout<Prim>(3, 3, SPARSE, FLATTENED, COMPRESSED) {
+    matrix_layout<Prim>::set_identity();
+  }
+
+  void jcalc(const dyn_var<Prim> &q_i) {
+    sinq = backend::sin<Prim>(q_i);
+    cosq = backend::cos<Prim>(q_i);
+
+    if (joint_xform_axis == 'X') {
+      set_entry_to_nonconstant(1, 1, cosq);
+      set_entry_to_nonconstant(1, 2, sinq);
+      set_entry_to_nonconstant(2, 1, -sinq);
+      set_entry_to_nonconstant(2, 2, cosq);
+    }
+    else if (joint_xform_axis == 'Y') {
+      set_entry_to_nonconstant(0, 0, cosq);
+      set_entry_to_nonconstant(0, 2, -sinq);
+      set_entry_to_nonconstant(2, 0, sinq);
+      set_entry_to_nonconstant(2, 2, cosq);
+    }
+    else if (joint_xform_axis == 'Z') {
+      set_entry_to_nonconstant(0, 0, cosq);
+      set_entry_to_nonconstant(0, 1, sinq);
+      set_entry_to_nonconstant(1, 0, -sinq);
+      set_entry_to_nonconstant(1, 1, cosq);
+    }
+    else {
+      assert(false && "jcalc called on non joint xform or joint unset");
+    }
+  }
+};
+
+template <typename Prim>
+struct Xform : public blocked_layout<Prim> {
+  using blocked_layout<Prim>::set_partitions;
+  using blocked_layout<Prim>::set_new_block;
+  using blocked_layout<Prim>::operator=;
+
+  typename Rotation<Prim>::Ptr rot;
+  typename Translation<Prim>::Ptr trans;
+  typename matrix_layout<Prim>::Ptr minus_E_rcross;
+
+  static_var<int> joint_type;
+
+  Xform() : blocked_layout<Prim>(6, 6), 
+    rot(new Rotation<Prim>()), trans(new Translation<Prim>()), 
+    minus_E_rcross(new matrix_layout<Prim>(3, 3, SPARSE, FLATTENED, COMPRESSED)) {
+
+    minus_E_rcross->set_zero();
+    set_partitions({0, 3}, {0, 3});
+    set_new_block(0, 0, rot);
+    set_new_block(1, 1, rot);
+    set_new_block(1, 0, minus_E_rcross);
+  }
 
   void set_revolute_axis(char axis) {
     assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
-    joint_xform_axis = axis;
+    rot->joint_xform_axis = axis;
     joint_type = 'R';
   }
 
   void set_prismatic_axis(char axis) {
     assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
-    joint_xform_axis = axis;
+    trans->joint_xform_axis = axis;
     joint_type = 'P';
   }
 
   void jcalc(const dyn_var<Prim> &q_i) {
-    set_identity();
-    sinq = backend::sin<Prim>(q_i);
-    cosq = backend::cos<Prim>(q_i);
+    if (joint_type == 'R')
+      rot->jcalc(q_i);
+    else
+      trans->jcalc(q_i);
 
-    if (joint_type == 'R') {
-      if (joint_xform_axis == 'X') {
-        set_entry_to_nonconstant(1, 1, cosq);
-        set_entry_to_nonconstant(1, 2, sinq);
-        set_entry_to_nonconstant(2, 1, -sinq);
-        set_entry_to_nonconstant(2, 2, cosq);
-        
-        set_entry_to_nonconstant(1+3, 1+3, cosq);
-        set_entry_to_nonconstant(1+3, 2+3, sinq);
-        set_entry_to_nonconstant(2+3, 1+3, -sinq);
-        set_entry_to_nonconstant(2+3, 2+3, cosq);
-      }
-      else if (joint_xform_axis == 'Y') {
-        set_entry_to_nonconstant(0, 0, cosq);
-        set_entry_to_nonconstant(0, 2, -sinq);
-        set_entry_to_nonconstant(2, 0, sinq);
-        set_entry_to_nonconstant(2, 2, cosq);
-        
-        set_entry_to_nonconstant(0+3, 0+3, cosq);
-        set_entry_to_nonconstant(0+3, 2+3, -sinq);
-        set_entry_to_nonconstant(2+3, 0+3, sinq);
-        set_entry_to_nonconstant(2+3, 2+3, cosq);
-      }
-      else if (joint_xform_axis == 'Z') {
-        set_entry_to_nonconstant(0, 0, cosq);
-        set_entry_to_nonconstant(0, 1, sinq);
-        set_entry_to_nonconstant(1, 0, -sinq);
-        set_entry_to_nonconstant(1, 1, cosq);
-        // symm E
-        set_entry_to_nonconstant(0+3, 0+3, cosq);
-        set_entry_to_nonconstant(0+3, 1+3, sinq);
-        set_entry_to_nonconstant(1+3, 0+3, -sinq);
-        set_entry_to_nonconstant(1+3, 1+3, cosq);
-      }
-      else {
-        assert(false && "jcalc called on non joint xform or joint unset");
-      }
-    }
-    else if (joint_type == 'P') {
-      if (joint_xform_axis == 'X') {
-        set_entry_to_nonconstant(1, 2, q_i);
-        set_entry_to_nonconstant(2, 1, -q_i);
-      }
-      else if (joint_xform_axis == 'Y') {
-        set_entry_to_nonconstant(2, 0, q_i);
-        set_entry_to_nonconstant(0, 2, -q_i);
-      }
-      else if (joint_xform_axis == 'Z') {
-        set_entry_to_nonconstant(0, 1, q_i);
-        set_entry_to_nonconstant(1, 0, -q_i);
-      }
-    }
+    *minus_E_rcross = -(*rot) * (*trans);
   }
 };
 
