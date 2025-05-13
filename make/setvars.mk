@@ -19,7 +19,7 @@ CFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) comp
 LDFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) linker-flags)
 
 DEPS=$(BUILD_DIR)/buildit.dep
-INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR)
+INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR) -I $(BLAZE_DIR)
 
 LIBRARY=$(BUILD_DIR)/lib$(LIBRARY_NAME).a
 

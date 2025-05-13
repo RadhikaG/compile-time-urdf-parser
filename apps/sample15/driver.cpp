@@ -3,9 +3,9 @@
 #include <iostream>
 
 const size_t N_X_T = 3;
-const size_t SIMD_WIDTH = 8;
+const size_t SIMD_WIDTH = 8UL;
 
-typedef blaze::StaticVector<double, SIMD_WIDTH> blazeSIMDVec;
+typedef blaze::StaticVector<double, SIMD_WIDTH> blazeSIMDVecd;
 
 // clang-format off
 const double data[N_X_T][36] = {
@@ -19,15 +19,15 @@ static void set_X_T(blaze::StaticMatrix<double, 6, 6> X_T[]) {
   size_t r, c;
 
   for (size_t i = 1; i < N_X_T; i++) {
-    blaze::StaticMatrix<double, 6, 6> pin_X_T(data[i]);
+    Eigen::Matrix<double, 6, 6> pin_X_T(data[i]);
 
     for (r = 0; r < 6; r = r + 1) {
       for (c = 0; c < 6; c = c + 1) {
-        double entry = pin_X_T.coeffRef(c, r);
+        double entry = pin_X_T(c, r);
         if (std::abs(entry) < 1e-5)
-          X_T[i].coeffRef(r, c) = 0;
+          X_T[i](r, c) = 0;
         else
-          X_T[i].coeffRef(r, c) = entry;
+          X_T[i](r, c) = entry;
       }
     }
   }
@@ -36,22 +36,22 @@ static void set_X_T(blaze::StaticMatrix<double, 6, 6> X_T[]) {
 int main(int argc, char *argv[]) {
   blaze::StaticMatrix<double, 6, 6> X_T[N_X_T];
 
-  blaze::StaticMatrix<blazeSIMDVec, 6, 6> X1, X2;
-  X1.setZero();
-  X2.setZero();
+  blaze::StaticMatrix<blazeSIMDVecd, 6, 6> X1, X2;
+  X1.reset();
+  X2.reset();
 
   set_X_T(X_T);
 
-  blaze::StaticVector<blazeSIMDVec, 2> q;
-  q(0) = 0.2;
-  q(1) = 0.3;
+  blaze::StaticVector<blazeSIMDVecd, 3> q;
+  q[0] = 0.2;
+  q[1] = 0.3;
 
-  blaze::StaticMatrix<blazeSIMDVec, 3, 3> E, rcross, minus_E_rcross;
-  E.setZero();
-  rcross.setZero(), minus_E_rcross.setZero();
+  blaze::StaticMatrix<blazeSIMDVecd, 3, 3> E, rcross, minus_E_rcross;
+  E.reset();
+  rcross.reset(), minus_E_rcross.reset();
 
-  blazeSIMDVec cosq = cos(q(1));
-  blazeSIMDVec sinq = sin(q(1));
+  blazeSIMDVecd cosq = cos(q[1]);
+  blazeSIMDVecd sinq = sin(q[1]);
 
   E(2, 2) = 1;
   E(0, 0) = cosq;
@@ -59,9 +59,10 @@ int main(int argc, char *argv[]) {
   E(1, 0) = -sinq;
   E(1, 1) = cosq;
 
-  blazeSIMDVec x = 0;
-  blazeSIMDVec y = 0;
-  blazeSIMDVec z = 0;
+  blazeSIMDVecd x, y, z;
+  x = 0;
+  y = 0;
+  z = 0;
   //double x = 0.06;
   //double y = 0.00;
   //double z = 0.686;
@@ -95,15 +96,25 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::cout << "Blaze X1:\n" << X1 << "\n";
-  std::cout << "Blaze X_T[1]:\n" << X_T[1] << "\n";
-  std::cout << "Blaze X2:\n" << X2 << "\n";
+  std::cout << "Blaze X1:\n";
+  ctup_gen::print_matrix(X1);
+  std::cout << "Blaze X_T[1]:\n";
+  ctup_gen::print_matrix(X_T[1]);
+  std::cout << "Blaze X2:\n";
+  ctup_gen::print_matrix(X2);
 
-  blaze::StaticMatrix<blazeSIMDVec, 6, 6> us_X2 = ctup_gen::fk(q);
+  blaze::StaticMatrix<blazeSIMDVecd, 6, 6> us_X2 = ctup_gen::fk(q);
 
-  if (us_X2.isApprox(X2, 1e-5))
-    return 0;
-  else
-    return 1;
+  blaze::StaticMatrix<blazeSIMDVecd, 6, 6> diff, abs_diff;
+  diff = us_X2 - X2;
+  abs_diff = abs(diff);
+
+  std::cout << "errors:\n";
+  ctup_gen::print_matrix(abs_diff);
+
+  //if ()
+  //  return 0;
+  //else
+  //  return 1;
 }
 

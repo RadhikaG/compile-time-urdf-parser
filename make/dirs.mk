@@ -15,4 +15,5 @@ LIBRARY_SRCS=$(wildcard $(SRC_DIR)/*.cpp)
 LIBRARY_OBJS=$(subst $(SRC_DIR),$(BUILD_DIR),$(LIBRARY_SRCS:.cpp=.o))
 
 EIGEN_DIR=$(PWD)/deps/eigen
+BLAZE_DIR=$(PWD)/deps/blaze
 INCLUDES=$(wildcard $(INCLUDE_DIR)/*.h)

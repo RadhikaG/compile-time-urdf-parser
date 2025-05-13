@@ -19,11 +19,11 @@ $(BUILD_DIR)/sample%: $(BUILD_DIR)/samples/sample%.o $(LIBRARY) $(DEPS)
 	@mkdir -p $(@D)
 	$(CXXLDV) -o $@ $< $(LDFLAGS)
 
-$(BUILD_DIR)/apps/sample10/driver.o: apps/sample10/driver.cpp $(INCLUDES) $(DEPS) apps/sample10/fk_gen.h
+$(BUILD_DIR)/apps/sample15/driver.o: apps/sample15/driver.cpp $(INCLUDES) $(DEPS) apps/sample15/fk_gen.h
 	@mkdir -p $(@D)
 	$(CXXV) $(CFLAGS_INTERNAL) $(CFLAGS) $< -o $@ $(INCLUDE_FLAGS) -c
 
-$(BUILD_DIR)/driver: $(BUILD_DIR)/apps/sample10/driver.o $(LIBRARY) $(DEPS)
+$(BUILD_DIR)/driver: $(BUILD_DIR)/apps/sample15/driver.o $(LIBRARY) $(DEPS)
 	@mkdir -p $(@D)
 	$(CXXLDV) -o $@ $< $(LDFLAGS)
 
