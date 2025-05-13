@@ -10,6 +10,7 @@
 #include "builder/array.h"
 
 #include <fstream>
+#include <typeinfo>
 
 const size_t N_X_T = 3;
 
@@ -23,20 +24,20 @@ using builder::static_var;
 
 namespace ctup {
 
-template <typename Scalar>
-struct Xform : public matrix_layout<Scalar> {
-  using matrix_layout<Scalar>::set_entry_to_constant;
-  using matrix_layout<Scalar>::set_entry_to_nonconstant;
-  using matrix_layout<Scalar>::set_identity;
-  using matrix_layout<Scalar>::operator=;
+template <typename Prim>
+struct Xform : public matrix_layout<Prim> {
+  using matrix_layout<Prim>::set_entry_to_constant;
+  using matrix_layout<Prim>::set_entry_to_nonconstant;
+  using matrix_layout<Prim>::set_identity;
+  using matrix_layout<Prim>::operator=;
 
-  dyn_var<Scalar> sinq;
-  dyn_var<Scalar> cosq;
+  dyn_var<Prim> sinq;
+  dyn_var<Prim> cosq;
 
   static_var<int> joint_type;
   static_var<int> joint_xform_axis;
 
-  Xform() : matrix_layout<Scalar>(6, 6, ctup::SPARSE, ctup::FLATTENED, ctup::COMPRESSED, true) {}
+  Xform() : matrix_layout<Prim>(6, 6, ctup::SPARSE, ctup::FLATTENED, ctup::COMPRESSED) {}
 
   void set_revolute_axis(char axis) {
     assert((axis == 'X' || axis == 'Y' || axis == 'Z') && "axis must be X,Y,Z");
@@ -50,10 +51,10 @@ struct Xform : public matrix_layout<Scalar> {
     joint_type = 'P';
   }
 
-  void jcalc(const dyn_var<Scalar> &q_i) {
+  void jcalc(const dyn_var<Prim> &q_i) {
     set_identity();
-    sinq = backend::sin(q_i);
-    cosq = backend::cos(q_i);
+    sinq = backend::sin<Prim>(q_i);
+    cosq = backend::cos<Prim>(q_i);
 
     if (joint_type == 'R') {
       if (joint_xform_axis == 'X') {
@@ -115,21 +116,12 @@ struct Xform : public matrix_layout<Scalar> {
 /** helpers **/
 
 using ctup::Xform;
-using ctup::EigenMatrix;
 using ctup::BlazeStaticVector;
 using ctup::BlazeStaticMatrix;
+using ctup::backend::blazeVecSIMDd;
 
-builder::dyn_var<void(EigenMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
+builder::dyn_var<void(BlazeStaticMatrix<double> &)> print_matrix = builder::as_global("print_matrix");
 builder::dyn_var<void(char *)> print_string = builder::as_global("print_string");
-
-template <typename Scalar, int Rows_, int Cols_>
-static void toEigen(dyn_var<EigenMatrix<Scalar, Rows_, Cols_>> &mat, Xform<Scalar> &xform) {
-  static_var<int> r, c;
-
-  for (r = 0; r < 6; r = r + 1)
-    for (c = 0; c < 6; c = c + 1)
-      mat.coeffRef(r, c) = xform.get_entry(r, c);
-}
 
 template <typename Scalar>
 static void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
@@ -139,13 +131,13 @@ static void print_Xmat(std::string prefix, Xform<Scalar> &xform) {
 
 /** helpers end **/
 
-template <typename Scalar>
-static void set_X_T(builder::array<Xform<Scalar>> &X_T) {
+template <typename Prim>
+static void set_X_T(builder::array<Xform<Prim>> &X_T) {
   static_var<int> r;
   static_var<int> c;
 
   for (static_var<size_t> i = 1; i < N_X_T; i = i+1) {
-    Eigen::Matrix<Scalar, 6, 6> pin_X_T(data[i]);
+    Eigen::Matrix<double, 6, 6> pin_X_T(data[i]);
 
     for (r = 0; r < 6; r = r + 1) {
       for (c = 0; c < 6; c = c + 1) {
@@ -156,7 +148,7 @@ static void set_X_T(builder::array<Xform<Scalar>> &X_T) {
   }
 }
 
-static void toRawMatrix(dyn_var<BlazeStaticMatrix<BlazeStaticVector<double, SIMD_WIDTH>>> &raw_mat, Xform<double> &xform) {
+static void toRawMatrix(dyn_var<BlazeStaticMatrix<blazeVecSIMDd>> &raw_mat, Xform<blazeVecSIMDd> &xform) {
   static_var<int> r, c;
 
   for (r = 0; r < 6; r = r + 1)
@@ -164,14 +156,14 @@ static void toRawMatrix(dyn_var<BlazeStaticMatrix<BlazeStaticVector<double, SIMD
       raw_mat(r, c) = xform.get_entry(r, c);
 }
 
-static dyn_var<BlazeStaticMatrix<BlazeStaticVector<double, SIMD_WIDTH>>> fk(dyn_var<BlazeStaticVector<BlazeStaticVector<double, SIMD_WIDTH>> &> q) {
+static dyn_var<BlazeStaticMatrix<blazeVecSIMDd>> fk(dyn_var<BlazeStaticVector<blazeVecSIMDd> &> q) {
 
-  builder::array<Xform<double>> X_T;
+  builder::array<Xform<blazeVecSIMDd>> X_T;
   X_T.set_size(N_X_T);
 
   set_X_T(X_T);
 
-  Xform<double> X1, X2;
+  Xform<blazeVecSIMDd> X1, X2;
 
   X1.set_revolute_axis('Z');
   X1.jcalc(q(1));
@@ -182,7 +174,7 @@ static dyn_var<BlazeStaticMatrix<BlazeStaticVector<double, SIMD_WIDTH>>> fk(dyn_
   print_Xmat("us X_T[1]:", X_T[1]);
   print_Xmat("us X2:", X2);
 
-  dyn_var<BlazeStaticMatrix<BlazeStaticVector<double, SIMD_WIDTH>>> final_ans;
+  dyn_var<BlazeStaticMatrix<blazeVecSIMDd>> final_ans;
   final_ans.set_matrix_fixed_size(6, 6);
 
   toRawMatrix(final_ans, X2);
@@ -198,7 +190,7 @@ int main(int argc, char* argv[]) {
   block::c_code_generator codegen(of);
 
   of << "// clang-format off\n\n";
-  of << "#include \"Eigen/Dense\"\n\n";
+  of << "#include \"blaze/Math.h\"\n\n";
   of << "#include <iostream>\n\n";
   of << "namespace ctup_gen {\n\n";
 
@@ -206,8 +198,8 @@ int main(int argc, char* argv[]) {
   of << "  std::cout << str << \"\\n\";\n";
   of << "}\n\n";
 
-  of << "template<typename Derived>\n";
-  of << "static void print_matrix(const Eigen::MatrixBase<Derived>& matrix) {\n";
+  of << "template<typename MT>\n";
+  of << "static void print_matrix(const blaze::DenseMatrix<MT, blaze::rowMajor>& matrix) {\n";
   of << "  std::cout << matrix << \"\\n\";\n";
   of << "}\n\n";
 

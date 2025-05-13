@@ -249,16 +249,25 @@ namespace ctup {
 
 template <typename T>
 struct vector_t: public builder::custom_type<T> {
-	static constexpr const char* type_name = "std::vector";
-	typedef T dereference_type;
-	dyn_var<void(int)> size = builder::with_name("size");
+  static constexpr const char* type_name = "std::vector";
+  typedef T dereference_type;
+  dyn_var<void(int)> size = builder::with_name("size");
   dyn_var<int(void)> resize = builder::with_name("resize");
   dyn_var<T(void)> push_back = builder::with_name("push_back");
 };
 
 namespace backend {
-builder::dyn_var<double(double)> sin = builder::as_global("sin");
-builder::dyn_var<double(double)> cos = builder::as_global("cos");
+
+typedef ctup::BlazeStaticVector<double, 8> blazeVecSIMDd;
+typedef ctup::BlazeStaticVector<float, 16> blazeVecSIMDf;
+
+//builder::dyn_var<double(double)> sin = builder::as_global("sin");
+//builder::dyn_var<double(double)> cos = builder::as_global("cos");
+
+template <typename Prim>
+builder::dyn_var<Prim(Prim)> sin = builder::as_global("sin");
+template <typename Prim>
+builder::dyn_var<Prim(Prim)> cos = builder::as_global("cos");
 
 builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>,
 vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>)> Sphere_Environment_Collision = builder::as_global("Sphere_Environment_Collision");

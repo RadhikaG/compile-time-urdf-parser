@@ -22,27 +22,7 @@ using builder::static_var;
 
 namespace ctup {
 
-struct zero_cst_status_checkable {
-  virtual bool is_nonzero(size_t i, size_t j) const = 0;
-  virtual bool is_zero(size_t i, size_t j) const = 0;
-  virtual bool is_nonconstant(size_t i, size_t j) const = 0;
-  virtual bool is_constant(size_t i, size_t j) const = 0;
-  virtual ~zero_cst_status_checkable() = default;
-};
-
-template <typename Scalar>
-struct zero_cst_status_storable : public zero_cst_status_checkable {
-  virtual builder::builder get_entry(size_t i, size_t j) const = 0;
-  virtual Scalar get_constant_entry(size_t i, size_t j) const = 0;
-  virtual dyn_var<EigenMatrix<Scalar>> denseify() const = 0;
-  virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) = 0;
-  virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) = 0;
-  virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) = 0;
-  virtual void set_zero() = 0;
-  virtual std::vector<size_t> get_expr_shape() const = 0;
-  virtual bool is_batching_enabled() const = 0;
-  virtual ~zero_cst_status_storable() = default;
-};
+//------- Template magic for resolving basic arithmetic and matrix types ------
 
 template <typename Scalar>
 struct inner_type { 
@@ -73,11 +53,41 @@ struct is_Matrix<ctup::EigenMatrix<Scalar, _Rows, _Cols>> : std::true_type {};
 template <typename Scalar ,int _Rows, int _Cols>
 struct is_Matrix<ctup::BlazeStaticMatrix<Scalar, _Rows, _Cols>> : std::true_type {};
 
+template <typename Scalar ,int _Rows>
+struct is_Matrix<ctup::BlazeStaticVector<Scalar, _Rows>> : std::true_type {};
+
 template <typename Prim>
 inline constexpr bool is_Matrix_v = is_Matrix<Prim>::value;
 
 template <typename Prim>
 using inner_type_t = typename inner_type<Prim>::type;
+
+//------------------------------------
+
+struct zero_cst_status_checkable {
+  virtual bool is_nonzero(size_t i, size_t j) const = 0;
+  virtual bool is_zero(size_t i, size_t j) const = 0;
+  virtual bool is_nonconstant(size_t i, size_t j) const = 0;
+  virtual bool is_constant(size_t i, size_t j) const = 0;
+  virtual ~zero_cst_status_checkable() = default;
+};
+
+template <typename Prim>
+struct zero_cst_status_storable : public zero_cst_status_checkable {
+  using Scalar = inner_type_t<Prim>;
+
+  virtual builder::builder get_entry(size_t i, size_t j) const = 0;
+  virtual Scalar get_constant_entry(size_t i, size_t j) const = 0;
+  // denseify return type needs to change based on Prim/Scalar
+  virtual dyn_var<EigenMatrix<Prim>> denseify() const = 0;
+  virtual void set_matrix(const dyn_var<EigenMatrix<Scalar>> &mat) = 0;
+  virtual void set_entry_to_constant(size_t i, size_t j, Scalar val) = 0;
+  virtual void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) = 0;
+  virtual void set_zero() = 0;
+  virtual std::vector<size_t> get_expr_shape() const = 0;
+  virtual bool is_batching_enabled() const = 0;
+  virtual ~zero_cst_status_storable() = default;
+};
 
 enum iteration_order {
   DENSE,
@@ -398,8 +408,9 @@ struct singleton_repr : public in_memory_sparsity_repr {
   }
 };
 
-template <typename Scalar>
+template <typename Prim>
 struct matrix_layout_expr : public zero_cst_status_checkable {
+  using Scalar = inner_type_t<Prim>;
   void trigger_abstract_method_assert() const {
     assert(false && "abstract matrix_layout_expr method call");
   }
@@ -409,7 +420,7 @@ struct matrix_layout_expr : public zero_cst_status_checkable {
   // enables dynamic inheritance
   virtual const builder::builder gen_entry_at(size_t i, size_t j) const {
     trigger_abstract_method_assert();
-    return dyn_var<Scalar>();
+    return dyn_var<Prim>();
   }
 
   virtual Scalar gen_constant_entry_at(size_t i, size_t j) const {
@@ -452,12 +463,13 @@ struct matrix_layout_expr : public zero_cst_status_checkable {
 };
 
 // fwd decl
-template <typename Scalar>
+template <typename Prim>
 struct matrix_layout_expr_leaf;
 
-template <typename Scalar>
-struct storage : public zero_cst_status_storable<Scalar> {
-  typedef std::shared_ptr<storage<Scalar>> Ptr;
+template <typename Prim>
+struct storage : public zero_cst_status_storable<Prim> {
+  using Scalar = inner_type_t<Prim>;
+  typedef std::shared_ptr<storage<Prim>> Ptr;
 
   size_t n_rows;
   size_t n_cols;
@@ -484,9 +496,9 @@ struct storage : public zero_cst_status_storable<Scalar> {
     assert(false && "abstract storage method call");
   }
 
-  virtual dyn_var<EigenMatrix<Scalar>> denseify() const override { 
+  virtual dyn_var<EigenMatrix<Prim>> denseify() const override { 
     trigger_abstract_method_assert();
-    return dyn_var<EigenMatrix<Scalar>>();
+    return dyn_var<EigenMatrix<Prim>>();
   }
 
   virtual Scalar get_constant_entry(size_t i, size_t j) const override {
@@ -540,22 +552,23 @@ struct storage : public zero_cst_status_storable<Scalar> {
 };
 
 template <typename Prim>
-struct unrolled_storage : public storage<inner_type_t<Prim>> {
+struct unrolled_storage : public storage<Prim> {
   using Scalar = inner_type_t<Prim>;
-  using storage<Scalar>::n_rows;
-  using storage<Scalar>::n_cols;
+  using storage<Prim>::n_rows;
+  using storage<Prim>::n_cols;
+  using storage<Prim>::get_flattened_index;
 
   builder::array<sparse_entry<Prim>> soup;
   uncompressed_repr sparsity_tracker;
 
   unrolled_storage(size_t r, size_t c) : 
-      storage<Scalar>(r, c), sparsity_tracker(r, c) {
+      storage<Prim>(r, c), sparsity_tracker(r, c) {
     soup.set_size(r * c);
   }
 
-  dyn_var<EigenMatrix<Scalar>> denseify() const override {
+  dyn_var<EigenMatrix<Prim>> denseify() const override {
     // needs to change for batched impl
-    dyn_var<EigenMatrix<Scalar>> mat;
+    dyn_var<EigenMatrix<Prim>> mat;
     mat.set_matrix_fixed_size(n_rows, n_cols);
     for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
       for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
@@ -567,16 +580,16 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
   }
 
   Scalar get_constant_entry(size_t i, size_t j) const override {
-    size_t flattened = storage<Scalar>::get_flattened_index(i, j);
+    size_t flattened = get_flattened_index(i, j);
 
-    std::string error_msg = storage<Scalar>::append_idx_error_msg("is not constant", i, j);
+    std::string error_msg = storage<Prim>::append_idx_error_msg("is not constant", i, j);
     assert(is_constant(i, j) && error_msg.c_str());
 
     return soup[flattened].static_entry;
   }
 
   builder::builder get_entry(size_t i, size_t j) const override {
-    size_t flattened = storage<Scalar>::get_flattened_index(i, j);
+    size_t flattened = get_flattened_index(i, j);
     if (is_constant(i, j))
       return soup[flattened].static_entry;
     else
@@ -592,7 +605,7 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
   }
 
   void set_entry_to_constant(size_t i, size_t j, Scalar val) override { 
-    size_t flattened = storage<Scalar>::get_flattened_index(i, j);
+    size_t flattened = get_flattened_index(i, j);
 
     // later add simplify_zero flag
     if (std::abs(val) < 1e-5) {
@@ -606,7 +619,7 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
   }
 
   void set_entry_to_nonconstant(size_t i, size_t j, const builder::builder &entry) override {
-    size_t flattened = storage<Scalar>::get_flattened_index(i, j);
+    size_t flattened = get_flattened_index(i, j);
     soup[flattened].dyn_entry = entry;
     sparsity_tracker.mark_nonconstant(i, j);
   }
@@ -625,10 +638,10 @@ struct unrolled_storage : public storage<inner_type_t<Prim>> {
 };
 
 template <typename Prim>
-struct flattened_storage : public storage<inner_type_t<Prim>> {
+struct flattened_storage : public storage<Prim> {
   using Scalar = inner_type_t<Prim>;
-  using storage<Scalar>::n_rows;
-  using storage<Scalar>::n_cols;
+  using storage<Prim>::n_rows;
+  using storage<Prim>::n_cols;
 
   compression compress;
   in_memory_sparsity_repr::Ptr sparsity_tracker;
@@ -639,7 +652,7 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
   dyn_var<Prim[]> m_array;
 
   flattened_storage(compression comp, size_t r, size_t c) : 
-      storage<Scalar>(r, c), compress(comp) {
+      storage<Prim>(r, c), compress(comp) {
     if (compress == UNCOMPRESSED)
       sparsity_tracker = std::make_shared<uncompressed_repr>(r, c);
     else if (compress == COMPRESSED)
@@ -659,8 +672,8 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
   }
 
   // not batched
-  dyn_var<EigenMatrix<Scalar>> denseify() const override {
-    dyn_var<EigenMatrix<Scalar>> mat;
+  dyn_var<EigenMatrix<Prim>> denseify() const override {
+    dyn_var<EigenMatrix<Prim>> mat;
     mat.set_matrix_fixed_size(n_rows, n_cols);
     for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
       for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
@@ -671,7 +684,7 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
   }
   
   Scalar get_constant_entry(size_t i, size_t j) const override {
-    std::string error_msg = storage<Scalar>::append_idx_error_msg("is not constant", i, j);
+    std::string error_msg = storage<Prim>::append_idx_error_msg("is not constant", i, j);
     assert(is_constant(i, j) && error_msg.c_str());
 
     if (is_zero(i, j))
@@ -730,21 +743,23 @@ struct flattened_storage : public storage<inner_type_t<Prim>> {
   }
 };
 
-template <typename Scalar>
-struct eigen_matrix_storage : public storage<Scalar> {
-  dyn_var<EigenMatrix<Scalar>> m_matrix;
+template <typename Prim>
+struct eigen_matrix_storage : public storage<Prim> {
+  using Scalar = inner_type_t<Prim>;
+
+  dyn_var<EigenMatrix<Prim>> m_matrix;
   // no sparsity tracking for eigen_matrix_storage for now
 
   eigen_matrix_storage(size_t r, size_t c) : 
-      storage<Scalar>(r, c) {
+      storage<Prim>(r, c) {
     m_matrix.set_matrix_fixed_size(r, c);
   }
 
-  eigen_matrix_storage(const dyn_var<EigenMatrix<Scalar>> &v, size_t r, size_t c) : 
-      storage<Scalar>(r, c), m_matrix(v) {
+  eigen_matrix_storage(const dyn_var<EigenMatrix<Prim>> &v, size_t r, size_t c) : 
+      storage<Prim>(r, c), m_matrix(v) {
   }
 
-  dyn_var<EigenMatrix<Scalar>> denseify() const override {
+  dyn_var<EigenMatrix<Prim>> denseify() const override {
     return m_matrix;
   }
 
@@ -753,7 +768,7 @@ struct eigen_matrix_storage : public storage<Scalar> {
   }
 
   builder::builder get_entry(size_t i, size_t j) const override {
-    return const_cast<dyn_var<EigenMatrix<Scalar>>&>(m_matrix).coeffRef(i, j);
+    return const_cast<dyn_var<EigenMatrix<Prim>>&>(m_matrix).coeffRef(i, j);
   }
 
   bool is_zero(size_t i, size_t j) const override {
@@ -787,60 +802,49 @@ struct eigen_matrix_storage : public storage<Scalar> {
   //}
 };
 
-template <typename Scalar>
-struct matrix_layout : public zero_cst_status_storable<Scalar> {
-  typedef std::shared_ptr<matrix_layout<Scalar>> Ptr;
+template <typename Prim>
+struct matrix_layout : public zero_cst_status_storable<Prim> {
+  using Scalar = inner_type_t<Prim>;
+  typedef std::shared_ptr<matrix_layout<Prim>> Ptr;
+  typename storage<Prim>::Ptr m_storage = nullptr;
+  static constexpr bool is_batched = is_Matrix_v<Prim>;
 
-  typename storage<Scalar>::Ptr m_storage = nullptr;
-
-  const bool is_batched;
   const iteration_order iter_order;
   const backend_mem_representation backend_mem_repr;
   const compression compress;
   const size_t shape[2];
 
   matrix_layout(size_t n_rows, size_t n_cols, iteration_order _iter, 
-          backend_mem_representation _bmr, compression _comp, bool _ib=false) :
-      is_batched(_ib), iter_order(_iter), backend_mem_repr(_bmr), compress(_comp), shape{n_rows, n_cols}
+          backend_mem_representation _bmr, compression _comp) :
+      iter_order(_iter), backend_mem_repr(_bmr), compress(_comp), shape{n_rows, n_cols}
   {
-    if (!is_batched) {
-      switch(backend_mem_repr) {
-        case UNROLLED:
-          //std::cout << "warn: compression ignored for UNROLLED, defacto compressed\n";
-          m_storage = std::make_shared<unrolled_storage<Scalar>>(n_rows, n_cols);
-          break;
-        case FLATTENED:
-          m_storage = std::make_shared<flattened_storage<Scalar>>(compress, n_rows, n_cols);
-          break;
-        case EIGENMATRIX:
-          //std::cout << "warn: compression ignored for EIGENMATRIX, default no sparsity tracking\n";
-          m_storage = std::make_shared<eigen_matrix_storage<Scalar>>(n_rows, n_cols);
-          break;
-      }
-    }
-    else {
-      switch(backend_mem_repr) {
-        case UNROLLED:
-          m_storage = std::make_shared<unrolled_storage<BlazeStaticVector<Scalar, SIMD_WIDTH>>>(n_rows, n_cols);
-          break;
-        case FLATTENED:
-          m_storage = std::make_shared<flattened_storage<BlazeStaticVector<Scalar, SIMD_WIDTH>>>(compress, n_rows, n_cols);
-          break;
-        case EIGENMATRIX:
-          assert(false && "simultaneous EigenMatrix and batched repr illegal, only Matrix of scalar value is defined");
-          break;
-      }
+    switch(backend_mem_repr) {
+      case UNROLLED:
+        //std::cout << "warn: compression ignored for UNROLLED, defacto compressed\n";
+        m_storage = std::make_shared<unrolled_storage<Prim>>(n_rows, n_cols);
+        break;
+      case FLATTENED:
+        m_storage = std::make_shared<flattened_storage<Prim>>(compress, n_rows, n_cols);
+        break;
+      case EIGENMATRIX:
+        assert(!is_batched && "simultaneous EigenMatrix and batched repr illegal, only Matrix of scalar value is defined");
+        //std::cout << "warn: compression ignored for EIGENMATRIX, default no sparsity tracking\n";
+        m_storage = std::make_shared<eigen_matrix_storage<Prim>>(n_rows, n_cols);
+        break;
     }
     assert(m_storage != nullptr && "messed up shouldn't happen");
   }
 
-  matrix_layout(const dyn_var<EigenMatrix<Scalar>> &raw_mat) :
-      is_batched(false), iter_order(DENSE), backend_mem_repr(EIGENMATRIX), compress(UNCOMPRESSED), shape{raw_mat.n_rows, raw_mat.n_cols}
-  {
-    m_storage = std::make_shared<eigen_matrix_storage<Scalar>>(raw_mat, shape[0], shape[1]);
-  }
+  //matrix_layout(const dyn_var<EigenMatrix<Scalar>> &raw_mat) :
+  //    iter_order(DENSE), backend_mem_repr(EIGENMATRIX), compress(UNCOMPRESSED), shape{raw_mat.n_rows, raw_mat.n_cols}
+  //{
+  //  m_storage = std::make_shared<eigen_matrix_storage<Scalar>>(raw_mat, shape[0], shape[1]);
+  //}
 
-  void operator=(const matrix_layout_expr<Scalar> &rhs) {
+  // delete copy constructor
+  matrix_layout(const matrix_layout& other) = delete;
+
+  void operator=(const matrix_layout_expr<Prim> &rhs) {
     if (iter_order == TILE) {
       m_storage->set_matrix(rhs.gen_dyn_matrix());
     }
@@ -862,8 +866,11 @@ struct matrix_layout : public zero_cst_status_storable<Scalar> {
     }
   }
 
-  void operator=(const zero_cst_status_storable<Scalar> &mat) {
-    *this = matrix_layout_expr_leaf<Scalar>(mat);
+  //void operator=(const zero_cst_status_storable<Prim> &mat) {
+  //  *this = matrix_layout_expr_leaf<Prim>(mat);
+  //}
+  void operator=(const matrix_layout &mat) {
+    *this = matrix_layout_expr_leaf<Prim>(mat);
   }
 
   size_t get_n_rows() const {
@@ -874,7 +881,7 @@ struct matrix_layout : public zero_cst_status_storable<Scalar> {
     return shape[1];
   }
 
-  dyn_var<EigenMatrix<Scalar>> denseify() const override {
+  dyn_var<EigenMatrix<Prim>> denseify() const override {
     return m_storage->denseify();
   }
 
@@ -938,12 +945,13 @@ struct matrix_layout : public zero_cst_status_storable<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
-  const struct zero_cst_status_storable<Scalar> &m_mat;
+template <typename Prim>
+struct matrix_layout_expr_leaf : public matrix_layout_expr<Prim> {
+  using Scalar = inner_type_t<Prim>;
+  const struct zero_cst_status_storable<Prim> &m_mat;
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_leaf(const struct zero_cst_status_storable<Scalar> &mat) : m_mat(mat) {
+  matrix_layout_expr_leaf(const struct zero_cst_status_storable<Prim> &mat) : m_mat(mat) {
     expr_shape.push_back(m_mat.get_expr_shape()[0]);
     expr_shape.push_back(m_mat.get_expr_shape()[1]);
   }
@@ -979,7 +987,7 @@ struct matrix_layout_expr_leaf : public matrix_layout_expr<Scalar> {
 
 template <typename Scalar>
 struct matrix_layout_expr_scalar : public matrix_layout_expr<Scalar> {
-  const struct sparse_entry<Scalar> m_se;
+  const struct sparse_entry<Scalar> &m_se;
   static_var<int> is_nonzero_status;
   static_var<int> is_nonconstant_status;
   std::vector<size_t> expr_shape;
@@ -1040,12 +1048,13 @@ struct matrix_layout_expr_scalar : public matrix_layout_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_transpose : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout_expr<Scalar> &expr1;
+template <typename Prim>
+struct matrix_layout_expr_transpose : public matrix_layout_expr<Prim> {
+  using Scalar = inner_type_t<Prim>;
+  const struct matrix_layout_expr<Prim> &expr1;
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_transpose(const struct matrix_layout_expr<Scalar> &expr1) : expr1(expr1) {
+  matrix_layout_expr_transpose(const struct matrix_layout_expr<Prim> &expr1) : expr1(expr1) {
     expr_shape.push_back(expr1.get_expr_shape()[1]);
     expr_shape.push_back(expr1.get_expr_shape()[0]);
   }
@@ -1086,16 +1095,17 @@ struct matrix_layout_expr_transpose : public matrix_layout_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout_expr<Scalar> &expr1;
-  const struct matrix_layout_expr<Scalar> &expr2;
+template <typename PRet, typename P1, typename P2>
+struct matrix_layout_expr_mul : public matrix_layout_expr<PRet> {
+  using Scalar = inner_type_t<PRet>;
+  const struct matrix_layout_expr<P1> &expr1;
+  const struct matrix_layout_expr<P2> &expr2;
 
-  using matrix_layout_expr<Scalar>::is_constant;
+  using matrix_layout_expr<PRet>::is_constant;
 
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_mul(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
+  matrix_layout_expr_mul(const struct matrix_layout_expr<P1> &expr1, const struct matrix_layout_expr<P2> &expr2)
       : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
@@ -1112,25 +1122,25 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
   }
 
   const builder::builder gen_entry_at(size_t i, size_t j) const override {
-    if (!is_batched(i, j)) {
+    //if (!is_batched(i, j)) {
       const size_t inner_dim = expr1.get_expr_shape()[1];
-      dyn_var<Scalar> sum = 0;
+      dyn_var<P1> sum = 0;
       // k is inner_dim for matmul
       for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
         sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);
       }
       return sum;
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      // if (expr1.is_batched() && !expr2.is_batched()) ... is the X_J * X_T case
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  // if (expr1.is_batched() && !expr2.is_batched()) ... is the X_J * X_T case
+    //  assert(false && "todo");
+    //}
   }
 
   Scalar gen_constant_entry_at(size_t i, size_t j) const override {
     assert(is_constant(i, j) && "entry isn't constant");
-    if (!is_batched(i, j)) {
+    //if (!is_batched(i, j)) {
       const size_t inner_dim = expr1.get_expr_shape()[1];
       static_var<Scalar> sum = 0;
       // k is inner_dim for matmul
@@ -1144,11 +1154,11 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
         }
       }
       return sum;
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  assert(false && "todo");
+    //}
   }
   
   std::vector<size_t> get_expr_shape() const override {
@@ -1190,14 +1200,15 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_add : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout_expr<Scalar> &expr1;
-  const struct matrix_layout_expr<Scalar> &expr2;
+template <typename PRet, typename P1, typename P2>
+struct matrix_layout_expr_add : public matrix_layout_expr<PRet> {
+  using Scalar = inner_type_t<PRet>;
+  const struct matrix_layout_expr<P1> &expr1;
+  const struct matrix_layout_expr<P2> &expr2;
 
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_add(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
+  matrix_layout_expr_add(const struct matrix_layout_expr<P1> &expr1, const struct matrix_layout_expr<P2> &expr2)
       : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
@@ -1249,13 +1260,14 @@ struct matrix_layout_expr_add : public matrix_layout_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout_expr<Scalar> &expr1;
+template <typename Prim>
+struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Prim> {
+  using Scalar = inner_type_t<Prim>;
+  const struct matrix_layout_expr<Prim> &expr1;
 
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_unary_minus(const struct matrix_layout_expr<Scalar> &expr1)
+  matrix_layout_expr_unary_minus(const struct matrix_layout_expr<Prim> &expr1)
       : expr1(expr1) {
     expr_shape = expr1.get_expr_shape();
   }
@@ -1297,16 +1309,17 @@ struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Scalar> {
   }
 };
 
-template <typename Scalar>
-struct matrix_layout_expr_cwise_mul : public matrix_layout_expr<Scalar> {
-  const struct matrix_layout_expr<Scalar> &expr1;
-  const struct matrix_layout_expr<Scalar> &expr2;
+template <typename PRet, typename P1, typename P2>
+struct matrix_layout_expr_cwise_mul : public matrix_layout_expr<PRet> {
+  using Scalar = inner_type_t<PRet>;
+  const struct matrix_layout_expr<P1> &expr1;
+  const struct matrix_layout_expr<P2> &expr2;
 
-  using matrix_layout_expr<Scalar>::is_constant;
+  using matrix_layout_expr<PRet>::is_constant;
 
   std::vector<size_t> expr_shape;
 
-  matrix_layout_expr_cwise_mul(const struct matrix_layout_expr<Scalar> &expr1, const struct matrix_layout_expr<Scalar> &expr2)
+  matrix_layout_expr_cwise_mul(const struct matrix_layout_expr<P1> &expr1, const struct matrix_layout_expr<P2> &expr2)
       : expr1(expr1), expr2(expr2) {
     std::vector<size_t> shape1, shape2;
     shape1 = expr1.get_expr_shape();
