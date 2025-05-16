@@ -761,8 +761,8 @@ struct Rotation : public Matrix<T> {
 
   void jcalc(const dyn_var<T> &q_i) {
     // Featherstone, Table 2.2
-    sinq = backend::sin(q_i); //REVISE
-    cosq = backend::cos(q_i);
+    sinq = backend::sin<T>(q_i); //REVISE
+    cosq = backend::cos<T>(q_i);
 
     assertm(is_joint_xform == true, "can't jcalc on a non-joint xform");
 

@@ -510,17 +510,34 @@ struct storage : public zero_cst_status_storable<Prim> {
       // flattened idx (i*n_cols+j): (SIMD_WIDTH-wide rowVec)
       // ... n_rows*n_cols lines
       // todo: SIMD_WIDTH should later be derived from Prim using template magic
-      mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      //mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      //for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+      //  for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+      //    if (!is_constant(i, j)) {
+      //      dyn_var<Prim&> mat_entry = get_entry(i, j);
+      //      for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+      //        mat(i*n_cols + j, k) = mat_entry[k];
+      //    }
+      //    else {
+      //      for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+      //        mat(i*n_cols + j, k) = get_constant_entry(i, j);
+      //    }
+      //  }
+      //}
+
+      // todo: this should be for full batched but in most cases, I use denseify for debugging
+      // for now I'm just going to output a single matrix 
+      // sliced across idx 0 in depth (for idx 0...SIMD_WIDTH)
+      mat.set_matrix_fixed_size(n_rows, n_cols);
       for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
         for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
           if (!is_constant(i, j)) {
             dyn_var<Prim&> mat_entry = get_entry(i, j);
-            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
-              mat(i*n_cols + j, k) = mat_entry[k];
+            mat(i, j) = mat_entry[0];
           }
           else {
             for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
-              mat(i*n_cols + j, k) = get_constant_entry(i, j);
+              mat(i, j) = get_constant_entry(i, j);
           }
         }
       }
@@ -623,13 +640,21 @@ struct unrolled_storage : public storage<Prim> {
   void set_entry_to_constant(size_t i, size_t j, Scalar val) override { 
     size_t flattened = get_flattened_index(i, j);
 
-    // later add simplify_zero flag
+    // later add simplify_zero and simplify_one flag
     if (std::abs(val) < 1e-5) {
       soup[flattened].static_entry = 0;
       sparsity_tracker.mark_constant(i, j, 0);
     }
     else {
-      soup[flattened].static_entry = val;
+      // we round up anything between 1 and 0.99999 to 1
+      if ((std::abs(val) - 0.99999) < 1e-5) {
+        if (val > 0)
+          soup[flattened].static_entry = 1;
+        else
+          soup[flattened].static_entry = -1;
+      }
+      else
+        soup[flattened].static_entry = val;
       sparsity_tracker.mark_constant(i, j, 1);
     }
   }
@@ -1231,21 +1256,21 @@ struct matrix_layout_expr_add : public matrix_layout_expr<PRet> {
   }
 
   const builder::builder gen_entry_at(size_t i, size_t j) const override {
-    if (!is_batched(i, j))
+    //if (!is_batched(i, j))
       return expr1.gen_entry_at(i, j) + expr2.gen_entry_at(i, j);
-    else
-      assert(false && "todo");
+    //else
+    //  assert(false && "todo");
   }
 
   Scalar gen_constant_entry_at(size_t i, size_t j) const override {
-    if (!is_batched(i, j)) {
+    //if (!is_batched(i, j)) {
       assert(expr1.is_constant(i, j) && expr2.is_constant(i, j) && "both exprs must be constant");
       return expr1.gen_constant_entry_at(i, j) + expr2.gen_constant_entry_at(i, j);
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  assert(false && "todo");
+    //}
   }
   
   std::vector<size_t> get_expr_shape() const override {
@@ -1287,14 +1312,14 @@ struct matrix_layout_expr_unary_minus : public matrix_layout_expr<Prim> {
   }
 
   Scalar gen_constant_entry_at(size_t i, size_t j) const override {
-    if (!is_batched(i, j)) {
-      assert(expr1.is_constant(i, j) && "must be constant");
+    //if (!is_batched(i, j)) {
+    //  assert(expr1.is_constant(i, j) && "must be constant");
       return -expr1.gen_constant_entry_at(i, j);
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  assert(false && "todo");
+    //}
   }
   
   std::vector<size_t> get_expr_shape() const override {
@@ -1343,26 +1368,26 @@ struct matrix_layout_expr_cwise_mul : public matrix_layout_expr<PRet> {
   }
 
   const builder::builder gen_entry_at(size_t i, size_t j) const override {
-    if (!is_batched(i, j)) {
+    //if (!is_batched(i, j)) {
       return expr1.gen_entry_at(i, j) * expr2.gen_entry_at(i, j);
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      // if (expr1.is_batched() && !expr2.is_batched()) ... is the X_J * X_T case
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  // if (expr1.is_batched() && !expr2.is_batched()) ... is the X_J * X_T case
+    //  assert(false && "todo");
+    //}
   }
 
   Scalar gen_constant_entry_at(size_t i, size_t j) const override {
     assert(is_constant(i, j) && "entry isn't constant");
-    if (!is_batched(i, j)) {
+    //if (!is_batched(i, j)) {
       assert(expr1.is_constant(i, j) && expr2.is_constant(i, j) && "both exprs must be constant");
       return expr1.gen_constant_entry_at(i, j) * expr2.gen_constant_entry_at(i, j);
-    }
-    else {
-      // will contain eigen specific calls for handling constants in a special way
-      assert(false && "todo");
-    }
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  assert(false && "todo");
+    //}
   }
   
   std::vector<size_t> get_expr_shape() const override {

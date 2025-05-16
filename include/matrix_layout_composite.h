@@ -300,17 +300,34 @@ struct blocked_layout : public zero_cst_status_storable<Prim> {
       // flattened idx (i*n_cols+j): (SIMD_WIDTH-wide rowVec)
       // ... n_rows*n_cols lines
       // todo: SIMD_WIDTH should later be derived from Prim using template magic
-      mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      //mat.set_matrix_fixed_size(n_rows * n_cols, SIMD_WIDTH);
+      //for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
+      //  for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
+      //    if (!is_constant(i, j)) {
+      //      dyn_var<Prim&> mat_entry = get_entry(i, j);
+      //      for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+      //        mat(i*n_cols + j, k) = mat_entry[k];
+      //    }
+      //    else {
+      //      for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
+      //        mat(i*n_cols + j, k) = get_constant_entry(i, j);
+      //    }
+      //  }
+      //}
+
+      // todo: this should be for full batched but in most cases, I use denseify for debugging
+      // for now I'm just going to output a single matrix 
+      // sliced across idx 0 in depth (for idx 0...SIMD_WIDTH)
+      mat.set_matrix_fixed_size(n_rows, n_cols);
       for (static_var<size_t> i = 0; i < n_rows; i = i+1) {
         for (static_var<size_t> j = 0; j < n_cols; j = j+1) {
           if (!is_constant(i, j)) {
             dyn_var<Prim&> mat_entry = get_entry(i, j);
-            for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
-              mat(i*n_cols + j, k) = mat_entry[k];
+            mat(i, j) = mat_entry[0];
           }
           else {
             for (static_var<size_t> k = 0; k < SIMD_WIDTH; k = k+1)
-              mat(i*n_cols + j, k) = get_constant_entry(i, j);
+              mat(i, j) = get_constant_entry(i, j);
           }
         }
       }
