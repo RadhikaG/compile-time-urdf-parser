@@ -190,15 +190,17 @@ typename std::enable_if<!are_both_storable<E1, E2> && !is_neither_storable<E1, E
                         const matrix_layout_expr<batching_common_type<E1, E2>> &>::type
 // ...for matrix * scalar or scalar * matrix (any matrix, even blocked)
 operator*(const E1 &v1, const E2 &v2) {
-  if (is_acceptable_rhs_scalar<E1>::value) {
+  if constexpr (is_acceptable_rhs_scalar<E2>::value) {
+    // matrix * scalar
     const matrix_layout_expr<typename is_acceptable_rhs_storable_or_expr<E1>::scalar_type> & v1_expr = is_acceptable_rhs_storable_or_expr<E1>::cast(v1);
 
     return *new matrix_layout_expr_cwise_mul<batching_common_type<E1, E2>, prim_type_t<E1>, prim_type_t<E2>>(
         v1_expr, is_acceptable_rhs_scalar<E2>::cast(v2, 
-            // broadcast the scalar operand within matrix_layout
+            // broadcast the scalar operand to same shape as v1
             v1_expr.get_expr_shape()[0], v1_expr.get_expr_shape()[1]));
   }
   else {
+    // scalar * matrix
     const matrix_layout_expr<typename is_acceptable_rhs_storable_or_expr<E2>::scalar_type> & v2_expr = is_acceptable_rhs_storable_or_expr<E2>::cast(v2);
 
     return *new matrix_layout_expr_cwise_mul<batching_common_type<E1, E2>, prim_type_t<E2>, prim_type_t<E1>>(

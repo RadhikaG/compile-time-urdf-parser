@@ -1017,7 +1017,7 @@ struct matrix_layout_expr_leaf : public matrix_layout_expr<Prim> {
 
 template <typename Scalar>
 struct matrix_layout_expr_scalar : public matrix_layout_expr<Scalar> {
-  const struct sparse_entry<Scalar> &m_se;
+  const struct sparse_entry<Scalar> m_se;
   static_var<int> is_nonzero_status;
   static_var<int> is_nonconstant_status;
   std::vector<size_t> expr_shape;
