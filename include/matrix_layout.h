@@ -525,6 +525,9 @@ struct storage : public zero_cst_status_storable<Prim> {
       //  }
       //}
 
+      // todo: debug prints currently rely on Eigen as a runtime
+      // dependency, since we don't do template magic rn to output
+      // the right Prim type.
       // todo: this should be for full batched but in most cases, I use denseify for debugging
       // for now I'm just going to output a single matrix 
       // sliced across idx 0 in depth (for idx 0...SIMD_WIDTH)

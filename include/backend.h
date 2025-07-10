@@ -258,8 +258,10 @@ struct vector_t: public builder::custom_type<T> {
 
 namespace backend {
 
-typedef ctup::BlazeStaticVector<double, 8> blazeVecSIMDd;
-typedef ctup::BlazeStaticVector<float, 16> blazeVecSIMDf;
+typedef ctup::BlazeStaticVector<float, 8> blaze_avx256f;
+typedef ctup::BlazeStaticVector<float, 16> blaze_avx512f;
+typedef ctup::BlazeStaticVector<double, 4> blaze_avx256d;
+typedef ctup::BlazeStaticVector<double, 8> blaze_avx512d;
 
 //builder::dyn_var<double(double)> sin = builder::as_global("sin");
 //builder::dyn_var<double(double)> cos = builder::as_global("cos");
@@ -268,14 +270,6 @@ template <typename Prim>
 builder::dyn_var<Prim(Prim)> sin = builder::as_global("sin");
 template <typename Prim>
 builder::dyn_var<Prim(Prim)> cos = builder::as_global("cos");
-
-builder::dyn_var<int(ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>, ctup::BlazeStaticVector<double,16>,
-vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>,vector_t<ctup::BlazeStaticVector<double,16>>)> Sphere_Environment_Collision = builder::as_global("Sphere_Environment_Collision");
-
-builder::dyn_var<int(dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<double>,
- dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<double>>,
- dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<ctup::BlazeStaticVector<double,16>>, dyn_var<double>,
- dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<ctup::BlazeStaticVector<double,16>>>, dyn_var<vector_t<double>>)> self_collision = builder::as_global("self_collision");
 
 template<typename Scalar, int Dim>
 builder::dyn_var<ctup::BlazeStaticVector<Scalar, Dim>(ctup::BlazeStaticVector<Scalar, Dim> &, double)> min = builder::as_global("min");
