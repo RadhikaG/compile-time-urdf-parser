@@ -256,6 +256,13 @@ struct vector_t: public builder::custom_type<T> {
   dyn_var<T(void)> push_back = builder::with_name("push_back");
 };
 
+template <typename T>
+struct std_array_t: public builder::custom_type<T> {
+  static constexpr const char* type_name = "std::array";
+  typedef T dereference_type;
+};
+
+
 namespace backend {
 
 typedef ctup::BlazeStaticVector<float, 8> blaze_avx256f;
