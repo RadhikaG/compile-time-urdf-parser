@@ -649,13 +649,10 @@ struct unrolled_storage : public storage<Prim> {
       sparsity_tracker.mark_constant(i, j, 0);
     }
     else {
-      // we round up anything between 1 and 0.99999 to 1
-      if ((std::abs(val) - 0.99999) < 1e-5) {
-        if (val > 0)
-          soup[flattened].static_entry = 1;
-        else
-          soup[flattened].static_entry = -1;
-      }
+      if (val >= 0.99999 && val < 1.0)
+        soup[flattened].static_entry = 1;
+      else if (val <= -0.99999 && val > -1.0)
+        soup[flattened].static_entry = -1;
       else
         soup[flattened].static_entry = val;
       sparsity_tracker.mark_constant(i, j, 1);

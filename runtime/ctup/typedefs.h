@@ -57,12 +57,12 @@ std::string pp(const blaze::Vector<VT, TF>& vec) {
 }
 
 template<typename SV>
-static bool is_any_negative(const SV& v) {
+static inline bool is_any_negative(const SV& v) {
   return blaze::min(v) <= 0;
 }
 
 template <typename VT, bool TF>
-blaze::RemoveAdaptor_t<VT> fast_sin(const blaze::Vector<VT, TF>& vec)
+static inline blaze::RemoveAdaptor_t<VT> fast_sin(const blaze::Vector<VT, TF>& vec)
 {
   const VT& x = ~vec;
   using VectorType = blaze::RemoveAdaptor_t<VT>;
@@ -99,7 +99,7 @@ blaze::RemoveAdaptor_t<VT> fast_sin(const blaze::Vector<VT, TF>& vec)
 }
 
 template <typename VT, bool TF>
-blaze::RemoveAdaptor_t<VT> fast_cos(const blaze::Vector<VT, TF>& vec)
+static inline blaze::RemoveAdaptor_t<VT> fast_cos(const blaze::Vector<VT, TF>& vec)
 {
   const VT& x = ~vec;
   using VectorType = blaze::RemoveAdaptor_t<VT>;
