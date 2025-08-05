@@ -56,11 +56,6 @@ std::string pp(const blaze::Vector<VT, TF>& vec) {
   return oss.str();
 }
 
-template<typename SV>
-static inline bool is_any_negative(const SV& v) {
-  return blaze::min(v) <= 0;
-}
-
 template <typename VT, bool TF>
 static inline blaze::RemoveAdaptor_t<VT> fast_sin(const blaze::Vector<VT, TF>& vec)
 {

@@ -1158,7 +1158,8 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<PRet> {
       sum = 0; // quirk in blaze, it can't declare and assign sum to 0 in same stmt
       // k is inner_dim for matmul
       for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-        sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);
+        if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
+          sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);
       }
       return sum;
     //}
