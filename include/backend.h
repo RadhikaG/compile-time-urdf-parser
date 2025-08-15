@@ -85,6 +85,11 @@ struct BlazeStaticVector {
   }
 };
 
+template <size_t scalars_per_row = 8, size_t num_rows = 1>
+struct VampFloatVector : public builder::custom_type<> {
+  static constexpr const char* type_name = "vamp::FloatVector";
+};
+
 } // namespace ctup
 
 namespace builder {
@@ -243,6 +248,36 @@ public:
   }
 };
 
+template <size_t scalars_per_row, size_t num_rows>
+class dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>> : public dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>> {
+public:
+  typedef dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>> super;
+  using super::super;
+  using super::operator=;
+  builder operator=(const dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>> &t) {
+    return (*this) = (builder)t;
+  }
+
+  dyn_var() : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>() {}
+
+  //dyn_var(size_t _n_rows, size_t _n_cols) : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>() {
+  //  set_matrix_fixed_size(_n_rows, _n_cols);
+  //}
+
+  dyn_var(const dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>> &t)
+      : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>((builder)t) {
+    this->block_var->var_type = block::clone(t.block_var->var_type);
+  }
+
+  // so indexing into matrix types returns a dyn_var<float> for vamp::FloatVector
+  dyn_var<float> operator[](const builder &bt) {
+    return (dyn_var<float>)(cast)this->dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>::operator[](bt);
+  }
+
+  dyn_var<void> sin = as_member(this, "sin");
+  dyn_var<void> cos = as_member(this, "cos");
+};
+
 } // namespace builder
 
 namespace ctup {
@@ -262,16 +297,13 @@ struct std_array_t: public builder::custom_type<T> {
   typedef T dereference_type;
 };
 
-
 namespace backend {
 
 typedef ctup::BlazeStaticVector<float, 8> blaze_avx256f;
 typedef ctup::BlazeStaticVector<float, 16> blaze_avx512f;
 typedef ctup::BlazeStaticVector<double, 4> blaze_avx256d;
 typedef ctup::BlazeStaticVector<double, 8> blaze_avx512d;
-
-//builder::dyn_var<double(double)> sin = builder::as_global("sin");
-//builder::dyn_var<double(double)> cos = builder::as_global("cos");
+typedef ctup::VampFloatVector<8, 1> vamp_avx256f;
 
 template <typename Prim>
 builder::dyn_var<Prim(Prim)> sin = builder::as_global("sin");

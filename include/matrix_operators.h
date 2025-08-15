@@ -220,6 +220,16 @@ operator+(const E1 &v1, const E2 &v2) {
       is_acceptable_rhs_storable_or_expr<E1>::cast(v1), is_acceptable_rhs_storable_or_expr<E2>::cast(v2));
 }
 
+template <typename E1, typename E2>
+// sets return type to matrix_layout_expr<Prim>...
+typename std::enable_if<are_both_storable<E1, E2> && !are_both_blocked<E1, E2>,
+                        const matrix_layout_expr<batching_common_type<E1, E2>> &>::type
+// ...for matrix - matrix //(but not blocked - blocked, we specialize for that) todo
+operator-(const E1 &v1, const E2 &v2) {
+  return *new matrix_layout_expr_sub<batching_common_type<E1, E2>, prim_type_t<E1>, prim_type_t<E2>>(
+      is_acceptable_rhs_storable_or_expr<E1>::cast(v1), is_acceptable_rhs_storable_or_expr<E2>::cast(v2));
+}
+
 template <typename E1>
 // sets return type to matrix_layout_expr<Prim>...
 typename std::enable_if<is_acceptable_rhs_storable_or_expr<E1>::value,

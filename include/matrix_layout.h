@@ -44,6 +44,11 @@ struct inner_type<ctup::BlazeStaticVector<Scalar, _Rows>> {
   using type = Scalar;
 };
 
+template <size_t scalars_per_row, size_t num_rows>
+struct inner_type<ctup::VampFloatVector<scalars_per_row, num_rows>> {
+  using type = float;
+};
+
 template <typename Scalar>
 struct is_Matrix : std::false_type {};
 
@@ -56,11 +61,29 @@ struct is_Matrix<ctup::BlazeStaticMatrix<Scalar, _Rows, _Cols>> : std::true_type
 template <typename Scalar ,int _Rows>
 struct is_Matrix<ctup::BlazeStaticVector<Scalar, _Rows>> : std::true_type {};
 
+template <size_t scalars_per_row, size_t num_rows>
+struct is_Matrix<ctup::VampFloatVector<scalars_per_row, num_rows>> : std::true_type {};
+
 template <typename Prim>
 inline constexpr bool is_Matrix_v = is_Matrix<Prim>::value;
 
 template <typename Prim>
 using inner_type_t = typename inner_type<Prim>::type;
+
+template <typename Scalar>
+struct is_blaze_type : std::false_type {};
+
+template <typename Scalar ,int _Rows, int _Cols>
+struct is_blaze_type<ctup::BlazeStaticMatrix<Scalar, _Rows, _Cols>> : std::true_type {};
+
+template <typename Scalar ,int _Rows>
+struct is_blaze_type<ctup::BlazeStaticVector<Scalar, _Rows>> : std::true_type {};
+
+template <typename Scalar>
+struct is_vamp_float_vector_type : std::false_type {};
+
+template <size_t scalars_per_row, size_t num_rows>
+struct is_vamp_float_vector_type<ctup::VampFloatVector<scalars_per_row, num_rows>> : std::true_type {};
 
 //------------------------------------
 
@@ -1154,8 +1177,19 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<PRet> {
   const builder::builder gen_entry_at(size_t i, size_t j) const override {
     //if (!is_batched(i, j)) {
       const size_t inner_dim = expr1.get_expr_shape()[1];
+      // sum initialization is Prim dependent
       dyn_var<PRet> sum;
-      sum = 0; // quirk in blaze, it can't declare and assign sum to 0 in same stmt
+      if (is_blaze_type<PRet>::value) {
+        // quirk in blaze, it can't declare and assign sum to 0 in same stmt
+        sum = 0; 
+      }
+      else if (is_vamp_float_vector_type<PRet>::value) {
+        // vamp floatvector quirk: can't seem to assign to scalars (?)
+        dyn_var<PRet> sum;
+      }
+      else {
+        sum = 0;
+      }
       // k is inner_dim for matmul
       for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
         if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
@@ -1267,6 +1301,66 @@ struct matrix_layout_expr_add : public matrix_layout_expr<PRet> {
     //if (!is_batched(i, j)) {
       assert(expr1.is_constant(i, j) && expr2.is_constant(i, j) && "both exprs must be constant");
       return expr1.gen_constant_entry_at(i, j) + expr2.gen_constant_entry_at(i, j);
+    //}
+    //else {
+    //  // will contain eigen specific calls for handling constants in a special way
+    //  assert(false && "todo");
+    //}
+  }
+  
+  std::vector<size_t> get_expr_shape() const override {
+    return expr_shape;
+  }
+
+  bool is_batched(size_t i, size_t j) const override {
+    // todo
+    return expr1.is_batched(i, j) || expr2.is_batched(i, j);
+  }
+
+  bool is_nonzero(size_t i, size_t j) const override {
+    return expr1.is_nonzero(i, j) || expr2.is_nonzero(i, j);
+  }
+
+  bool is_nonconstant(size_t i, size_t j) const override {
+    return expr1.is_nonconstant(i, j) || expr2.is_nonconstant(i, j);
+  }
+};
+
+template <typename PRet, typename P1, typename P2>
+struct matrix_layout_expr_sub : public matrix_layout_expr<PRet> {
+  using Scalar = inner_type_t<PRet>;
+  const struct matrix_layout_expr<P1> &expr1;
+  const struct matrix_layout_expr<P2> &expr2;
+
+  std::vector<size_t> expr_shape;
+
+  matrix_layout_expr_sub(const struct matrix_layout_expr<P1> &expr1, const struct matrix_layout_expr<P2> &expr2)
+      : expr1(expr1), expr2(expr2) {
+    std::vector<size_t> shape1, shape2;
+    shape1 = expr1.get_expr_shape();
+    shape2 = expr2.get_expr_shape();
+
+    assert(shape1[0] == shape2[0] && shape1[1] == shape2[1] && "shapes must match");
+
+    expr_shape.push_back(shape1[0]);
+    expr_shape.push_back(shape1[1]);
+  }
+
+  const dyn_var<EigenMatrix<Scalar>> gen_dyn_matrix() const override {
+    return expr1.gen_dyn_matrix() - expr2.gen_dyn_matrix();
+  }
+
+  const builder::builder gen_entry_at(size_t i, size_t j) const override {
+    //if (!is_batched(i, j))
+      return expr1.gen_entry_at(i, j) - expr2.gen_entry_at(i, j);
+    //else
+    //  assert(false && "todo");
+  }
+
+  Scalar gen_constant_entry_at(size_t i, size_t j) const override {
+    //if (!is_batched(i, j)) {
+      assert(expr1.is_constant(i, j) && expr2.is_constant(i, j) && "both exprs must be constant");
+      return expr1.gen_constant_entry_at(i, j) - expr2.gen_constant_entry_at(i, j);
     //}
     //else {
     //  // will contain eigen specific calls for handling constants in a special way
