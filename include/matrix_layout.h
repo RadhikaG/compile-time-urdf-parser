@@ -506,7 +506,7 @@ struct storage : public zero_cst_status_storable<Prim> {
   }
 
   size_t get_flattened_index(size_t i, size_t j) const {
-    size_t  flattened = i * n_cols + j;
+    size_t flattened = i * n_cols + j;
 
     std::string error_msg = append_idx_error_msg("index out of bounds", i, j);
     assert(flattened < n_rows * n_cols && error_msg.c_str());

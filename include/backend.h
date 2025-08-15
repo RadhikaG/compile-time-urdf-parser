@@ -86,8 +86,23 @@ struct BlazeStaticVector {
 };
 
 template <size_t scalars_per_row = 8, size_t num_rows = 1>
-struct VampFloatVector : public builder::custom_type<> {
+struct VampFloatVector {
   static constexpr const char* type_name = "vamp::FloatVector";
+
+  static auto get_template_arg_types() {
+    std::vector<block::type::Ptr> types;
+
+    auto d1 = std::make_shared<block::named_type>();
+    d1->type_name = std::to_string(scalars_per_row);
+
+    auto d2 = std::make_shared<block::named_type>();
+    d2->type_name = std::to_string(num_rows);
+
+    types.push_back(d1);
+    types.push_back(d2);
+
+    return types;
+  }
 };
 
 } // namespace ctup
@@ -260,9 +275,17 @@ public:
 
   dyn_var() : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>() {}
 
-  //dyn_var(size_t _n_rows, size_t _n_cols) : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>() {
-  //  set_matrix_fixed_size(_n_rows, _n_cols);
-  //}
+  void set_matrix_fixed_size(size_t _scalars_per_row, size_t _num_rows) {
+    auto type = block::to<block::named_type>(this->block_var->var_type);
+    auto d1 = block::to<block::named_type>(type->template_args[1]);
+    auto d2 = block::to<block::named_type>(type->template_args[2]);
+    d1->type_name = std::to_string(_scalars_per_row);
+    d2->type_name = std::to_string(_num_rows);
+  }
+
+  dyn_var(size_t _scalars_per_row, size_t _num_rows) : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>() {
+    set_matrix_fixed_size(_scalars_per_row, _num_rows);
+  }
 
   dyn_var(const dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>> &t)
       : dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>((builder)t) {

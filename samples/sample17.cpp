@@ -152,7 +152,7 @@ static dyn_var<ctup::BlazeStaticMatrix<blaze_avx256f, 4, 4>> batched_mm_blaze(dy
 
   for (static_var<size_t> i = 0; i < 4; i = i+1) {
     for (static_var<size_t> j = 0; j < 4; j = j+1) {
-      final_ans[i][j] = X_0.get_entry(i, j);
+      final_ans(i, j) = X_0.get_entry(i, j);
     }
   }
 
