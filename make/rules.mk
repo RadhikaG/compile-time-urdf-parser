@@ -1,7 +1,11 @@
+# (1) Add paths to each app dir here
+APP_DIRS=apps/homog_bench apps/sample10 apps/sample13 apps/sample15
+
+# (2) This rule makes a $(BUILD_DIR)/apps/[dir name]/driver executable for each app
+APPS=$(patsubst apps/%,$(BUILD_DIR)/apps/%/driver,$(APP_DIRS))
+
 .PRECIOUS: $(BUILD_DIR)/%.o 
 .PRECIOUS: $(BUILD_DIR)/samples/%.o 
-.PRECIOUS: $(BUILD_DIR)/apps/sample10/driver.o
-
 
 $(LIBRARY_OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(INCLUDES) $(DEPS)
 	@mkdir -p $(@D)
@@ -19,13 +23,13 @@ $(BUILD_DIR)/sample%: $(BUILD_DIR)/samples/sample%.o $(LIBRARY) $(DEPS)
 	@mkdir -p $(@D)
 	$(CXXLDV) -o $@ $< $(LDFLAGS)
 
-$(BUILD_DIR)/apps/sample15/driver.o: apps/sample15/driver.cpp $(INCLUDES) $(DEPS) apps/sample15/fk_gen.h
+$(BUILD_DIR)/apps/%/driver.o: apps/%/driver.cpp $(INCLUDES) $(DEPS)
 	@mkdir -p $(@D)
-	$(CXXV) $(CFLAGS_INTERNAL) $(CFLAGS) $< -o $@ $(INCLUDE_FLAGS) -c
+	$(CXXV) $(CFLAGS_INTERNAL) $(CFLAGS) -mavx2 $< -o $@ $(INCLUDE_FLAGS) -c
 
-$(BUILD_DIR)/driver: $(BUILD_DIR)/apps/sample15/driver.o $(LIBRARY) $(DEPS)
+$(BUILD_DIR)/apps/%/driver: $(BUILD_DIR)/apps/%/driver.o $(LIBRARY) $(DEPS)
 	@mkdir -p $(@D)
 	$(CXXLDV) -o $@ $< $(LDFLAGS)
 
 .PHONY: executables
-executables: $(SAMPLES) $(BUILD_DIR)/driver
+executables: $(SAMPLES) $(APPS)

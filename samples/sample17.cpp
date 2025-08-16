@@ -49,8 +49,8 @@ struct Xform : public matrix_layout<Prim> {
 
   void jcalc(dyn_var<Prim> &q_i) {
     if constexpr (ctup::is_vamp_float_vector_type<Prim>::value) {
-      q_i.sin();
-      q_i.cos();
+      sinq = q_i.sin();
+      cosq = q_i.cos();
     }
     else {
       sinq = ctup::backend::sin<Prim>(q_i);

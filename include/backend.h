@@ -297,8 +297,8 @@ public:
     return (dyn_var<float>)(cast)this->dyn_var_impl<ctup::VampFloatVector<scalars_per_row, num_rows>>::operator[](bt);
   }
 
-  dyn_var<void> sin = as_member(this, "sin");
-  dyn_var<void> cos = as_member(this, "cos");
+  dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>&(void)> sin = as_member(this, "sin");
+  dyn_var<ctup::VampFloatVector<scalars_per_row, num_rows>&(void)> cos = as_member(this, "cos");
 };
 
 } // namespace builder

@@ -13,13 +13,13 @@ LDFLAGS=
 
 CFLAGS_INTERNAL=-std=c++17 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wmissing-declarations 
 CFLAGS_INTERNAL+=-Woverloaded-virtual -Wno-deprecated -Wdelete-non-virtual-dtor -Werror -Wno-vla -pedantic-errors 
-CFLAGS_INTERNAL+=-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function
+CFLAGS_INTERNAL+=-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function -Wno-ignored-attributes -Wno-sign-compare
 
 CFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) compile-flags)
 LDFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) linker-flags)
 
 DEPS=$(BUILD_DIR)/buildit.dep
-INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR) -I $(BLAZE_DIR)
+INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR) -I $(BLAZE_DIR) -I $(VAMP_DIR)
 
 LIBRARY=$(BUILD_DIR)/lib$(LIBRARY_NAME).a
 
