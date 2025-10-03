@@ -105,36 +105,52 @@ struct VampFloatVector {
   }
 };
 
+static const char eigen_vectorxd_t_name[] = "Eigen::VectorXd";
+using EigenVectorXd = builder::name<eigen_vectorxd_t_name>;
+
+static const char eigen_matrixxd_t_name[] = "Eigen::MatrixXd";
+using EigenMatrixXd = builder::name<eigen_matrixxd_t_name>;
+
 } // namespace ctup
 
 namespace builder {
 
-static const char eigen_vec_t_name[] = "Eigen::VectorXd";
-using eigen_vectorXd_t = name<eigen_vec_t_name>;
-
 template <>
-class dyn_var<eigen_vectorXd_t> : public dyn_var_impl<eigen_vectorXd_t> {
+class dyn_var<ctup::EigenVectorXd> : public dyn_var_impl<ctup::EigenVectorXd> {
 public:
-  typedef dyn_var_impl<eigen_vectorXd_t> super;
+  typedef dyn_var_impl<ctup::EigenVectorXd> super;
   using super::super;
   using super::operator=;
-  builder operator=(const dyn_var<eigen_vectorXd_t> &t) {
+  builder operator=(const dyn_var<ctup::EigenVectorXd> &t) {
     return (*this) = (builder)t;
   }
   dyn_var(const dyn_var &t) : dyn_var_impl((builder)t) {}
-  dyn_var() : dyn_var_impl<eigen_vectorXd_t>() {}
+  dyn_var() : dyn_var_impl<ctup::EigenVectorXd>() {}
 
   // so indexing into vector types returns a dyn_var<double>
   dyn_var<double> operator[](const builder &bt) {
-    return (dyn_var<double>)(cast)this->dyn_var_impl<eigen_vectorXd_t>::operator[](bt);
+    return (dyn_var<double>)(cast)this->dyn_var_impl<ctup::EigenVectorXd>::operator[](bt);
   }
 
-  dyn_var<eigen_vectorXd_t(Eigen::Index, Eigen::Index)> setZero = as_member(this, "setZero");
-  dyn_var<eigen_vectorXd_t(Eigen::Index, Eigen::Index)> setOnes = as_member(this, "setOnes");
-  dyn_var<eigen_vectorXd_t(void)> cos = as_member(this, "cos");
-  dyn_var<eigen_vectorXd_t(void)> array = as_member(this, "array");
-  dyn_var<eigen_vectorXd_t(double)> setConstant = as_member(this, "setConstant");
-  dyn_var<eigen_vectorXd_t(void)> sin = as_member(this, "sin");
+  dyn_var<ctup::EigenVectorXd(Eigen::Index, Eigen::Index)> setZero = as_member(this, "setZero");
+  dyn_var<ctup::EigenVectorXd(Eigen::Index, Eigen::Index)> setOnes = as_member(this, "setOnes");
+  dyn_var<ctup::EigenVectorXd(void)> cos = as_member(this, "cos");
+  dyn_var<ctup::EigenVectorXd(void)> array = as_member(this, "array");
+  dyn_var<ctup::EigenVectorXd(double)> setConstant = as_member(this, "setConstant");
+  dyn_var<ctup::EigenVectorXd(void)> sin = as_member(this, "sin");
+};
+
+template <>
+class dyn_var<ctup::EigenMatrixXd> : public dyn_var_impl<ctup::EigenMatrixXd> {
+public:
+  typedef dyn_var_impl<ctup::EigenMatrixXd> super;
+  using super::super;
+  using super::operator=;
+  builder operator=(const dyn_var<ctup::EigenMatrixXd> &t) {
+    return (*this) = (builder)t;
+  }
+  dyn_var(const dyn_var &t) : dyn_var_impl((builder)t) {}
+  dyn_var() : dyn_var_impl<ctup::EigenMatrixXd>() {}
 };
 
 // same convention as Eigen::Matrix
@@ -192,7 +208,7 @@ public:
   dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(double)> setConstant = as_member(this, "setConstant");
   //dyn_var<ctup::EigenMatrix<Scalar, Rows_, Cols_> &(void)> transpose = as_member(this, "transpose");
   dyn_var<ctup::EigenMatrix<Scalar> &(void)> transpose = as_member(this, "transpose");
-  dyn_var<eigen_vectorXd_t &(Eigen::Index)> col = as_member(this, "col");
+  dyn_var<ctup::EigenVectorXd &(Eigen::Index)> col = as_member(this, "col");
 };
 
 template <typename Scalar, int Rows_, int Cols_>

@@ -356,6 +356,18 @@ struct blocked_layout : public zero_cst_status_storable<Prim> {
     }
   }
 
+  void set_identity() {
+    assert(shape[0] == shape[1] && "matrix must be square for set_identity");
+    for (static_var<size_t> i = 0; i < shape[0]; i = i+1) {
+      for (static_var<size_t> j = 0; j < shape[1]; j = j+1) {
+        if (i == j)
+          set_entry_to_constant(i, j, 1);
+        else
+          set_entry_to_constant(i, j, 0);
+      }
+    }
+  }
+
   bool is_batching_enabled() const override {
     return is_Matrix_v<Prim>;
   }

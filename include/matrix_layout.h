@@ -1192,8 +1192,22 @@ struct matrix_layout_expr_mul : public matrix_layout_expr<PRet> {
       }
       // k is inner_dim for matmul
       for (static_var<size_t> k = 0; k < inner_dim; k = k + 1) {
-        if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j))
-          sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);
+        // simplifying multiplications by zero and one
+        if (expr1.is_nonzero(i, k) && expr2.is_nonzero(k, j)) {
+
+          // todo: need to propagate zeros and ones through multiply but there's a bug somewhere here
+          //static_var<int> is_expr1_one = (expr1.is_constant(i, k) && expr1.gen_constant_entry_at(i, k) == 1);
+          //static_var<int> is_expr2_one = (expr2.is_constant(k, j) && expr2.gen_constant_entry_at(k, j) == 1);
+
+          //if (is_expr1_one && is_expr2_one)
+          //  sum += 1;
+          //else if (is_expr1_one)
+          //  sum += expr1.gen_entry_at(k, j);
+          //else if (is_expr2_one)
+          //  sum += expr1.gen_entry_at(i, k);
+          //else
+            sum += expr1.gen_entry_at(i, k) * expr2.gen_entry_at(k, j);
+        }
       }
       return sum;
     //}
