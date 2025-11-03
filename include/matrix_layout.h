@@ -818,6 +818,7 @@ struct eigen_matrix_storage : public storage<Prim> {
 
   Scalar get_constant_entry(size_t i, size_t j) const override {
     assert(false && "no sparsity tracking for eigen_matrix_storage");
+    return 0;
   }
 
   builder::builder get_entry(size_t i, size_t j) const override {
@@ -846,6 +847,7 @@ struct eigen_matrix_storage : public storage<Prim> {
 
   bool is_batching_enabled() const override {
     assert(false && "no batching allowed for eigen matrix container");
+    return false;
   }
 
   // commented because turns out eigen's setZero method for small matrices

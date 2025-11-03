@@ -19,7 +19,12 @@ CFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) comp
 LDFLAGS+=$(shell make --no-print-directory -C $(BUILDIT_DIR)/ DEBUG=$(DEBUG) linker-flags)
 
 DEPS=$(BUILD_DIR)/buildit.dep
-INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR) -I $(BLAZE_DIR) -I $(VAMP_DIR)
+INCLUDE_FLAGS=-I $(INCLUDE_DIR) -I $(EIGEN_DIR) -I $(BLAZE_DIR)
+
+# Only add VAMP include path if VAMP is available
+ifdef VAMP_DIR
+    INCLUDE_FLAGS+= -I $(VAMP_DIR)/src/impl
+endif
 
 LIBRARY=$(BUILD_DIR)/lib$(LIBRARY_NAME).a
 

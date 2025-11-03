@@ -281,7 +281,7 @@ static void set_X_T(Xform<Scalar> X_T[]) {
 }
 
 
-static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<builder::eigen_vectorXd_t &> q) {
+static dyn_var<ctup::EigenMatrix<double, 6, 6>> fk(dyn_var<ctup::EigenVectorXd &> q) {
 
   Xform<double> X_T[N_X_T];
 

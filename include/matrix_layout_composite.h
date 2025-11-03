@@ -3,6 +3,8 @@
 #include "matrix_layout.h"
 #include <utility>
 #include <vector>
+#undef NDEBUG
+#include <assert.h>
 
 using builder::dyn_var;
 using builder::static_var;
@@ -549,8 +551,10 @@ struct blocked_layout_expr_mul : public blocked_layout_expr<PRet> {
     }
 
     if (expr1.is_block_zero(b_i, b_k) || expr2.is_block_zero(b_k, b_j)) {
-      if (next_nz == OOB)
+      if (next_nz == OOB) {
         assert(false && "mul gen_block_expr was called for an empty expr, should have checked if result is zero prior");
+        return gen_mac_chain_recurse(b_i, b_j, next_nz); // dummy stmt to avoid no return stmt warnings
+      }
       else
         return gen_mac_chain_recurse(b_i, b_j, next_nz);
     }

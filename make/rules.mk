@@ -1,5 +1,12 @@
 # (1) Add paths to each app dir here
-APP_DIRS=apps/homog_bench apps/sample10 apps/sample13 apps/sample15
+APP_DIRS=apps/sample10 apps/sample13 apps/sample15
+
+# Only build homog_bench if VAMP is available
+ifdef VAMP_DIR
+    ifneq ($(wildcard $(VAMP_DIR)/src/impl),)
+        APP_DIRS += apps/homog_bench
+    endif
+endif
 
 # (2) This rule makes a $(BUILD_DIR)/apps/[dir name]/driver executable for each app
 APPS=$(patsubst apps/%,$(BUILD_DIR)/apps/%/driver,$(APP_DIRS))
